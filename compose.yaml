@@ -1,0 +1,11 @@
+services:
+  traktor:
+    image: ghcr.io/davidtvieira/traktor:latest
+    build: .
+    container_name: traktor
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "7100:7100"
+    volumes:
+      - ./data:/data
