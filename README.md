@@ -13,28 +13,22 @@ Stremio playback is not reported to addons, so it is not synced.
 
 1. Create an app at <https://trakt.tv/oauth/applications>. Set the **Redirect URI** to any `https://` address (for example `https://just-copy.me`; the page never has to load). Copy the **Client ID**.
 
-2. Create `.env`:
+2. Download `compose.yaml` and `.env.example` from this repo into an empty folder, and copy the example to `.env`:
 
-   ```env
-   TRAKT_CLIENT_ID=your-client-id
-   TRAKT_REDIRECT_URI=https://just-copy.me   # must match the Trakt app exactly
-   PORT=7100
-   # AIOStreams login: only used to fetch your users, so each can be linked to a Trakt account on /auth
-   AIOSTREAMS_URL=http://192.168.1.4:3000
-   AIOSTREAMS_UUID=your-aiostreams-config-uuid
-   AIOSTREAMS_PASSWORD=your-aiostreams-config-password
-
-   # Optional
-   ADMIN_PASSWORD=     # asks for a password on /auth
-   ADDON_SECRET=       # adds /<secret>/ to the manifest URL
+   ```sh
+   cp .env.example .env     # then fill in TRAKT_CLIENT_ID and the AIOStreams values
    ```
+
+   `TRAKT_REDIRECT_URI` must match the Trakt app exactly. The three `AIOSTREAMS_` values are only used to fetch your users, so each can be linked to a Trakt account on `/auth`. `ADMIN_PASSWORD` (asks for a password on `/auth`) and `ADDON_SECRET` (adds `/<secret>/` to the manifest URL) are optional.
 
 3. Start it:
 
    ```sh
    mkdir -p data && chown 1000:1000 data
-   docker compose up -d          # pulls ghcr.io/davidtvieira/traktor; add --build to build from source
+   docker compose up -d
    ```
+
+   This pulls `ghcr.io/davidtvieira/traktor`. To build from source instead: `docker compose -f compose.yaml -f compose.build.yaml up -d --build`.
 
 ## Install in AIOStreams
 

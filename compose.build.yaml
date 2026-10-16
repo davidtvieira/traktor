@@ -1,0 +1,5 @@
+# Build from source instead of pulling the image:
+#   docker compose -f compose.yaml -f compose.build.yaml up -d --build
+services:
+  traktor:
+    build: .
