@@ -1,6 +1,6 @@
 services:
   traktor:
-    image: ghcr.io/davidtvieira/traktor:latest
+    image: davidtvieira/traktor:latest
     container_name: traktor
     restart: unless-stopped
     env_file: .env

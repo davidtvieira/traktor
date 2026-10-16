@@ -28,7 +28,7 @@ Stremio playback is not reported to addons, so it is not synced.
    docker compose up -d
    ```
 
-   This pulls `ghcr.io/davidtvieira/traktor`. To build from source instead: `docker compose -f compose.yaml -f compose.build.yaml up -d --build`.
+   This pulls `davidtvieira/traktor` from Docker Hub (`docker pull davidtvieira/traktor`; also published as `ghcr.io/davidtvieira/traktor`). To build from source instead: `docker compose -f compose.yaml -f compose.build.yaml up -d --build`.
 
 ## Install in AIOStreams
 
