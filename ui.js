@@ -1,5 +1,11 @@
 // HTML for the browser pages: shared styles and the static pages.
 export const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// Stroke icons for the buttons on the user list (the title and aria-label carry the meaning).
+export const ICONS = {
+  calendar: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+  lists: '<svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+  unlink: '<svg viewBox="0 0 24 24"><path d="M18.84 12.25l1.72-1.71a5 5 0 0 0-7.07-7.07l-1.71 1.71M5.17 11.75l-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71M8 2v3M2 8h3M16 22v-3M22 16h-3"/></svg>',
+};
 const CSS = `
 :root{--bg:#0d0d0d;--card:#1a1a1a;--card2:#232323;--line:#2e2e2e;--text:#f2f2f2;--mute:#9a9a9a;--red:#ed1c24;--red2:#ff3b42;--green:#3ddc84}
 *{box-sizing:border-box}
@@ -28,6 +34,7 @@ h1,h2{margin:0 0 6px;font-size:26px;letter-spacing:-.3px}
 .who{flex:1;min-width:0}.who b,.who span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .who span{color:var(--mute);font-size:13px}
 .user .btn,.user button,.user form{flex:none;white-space:nowrap}h1,h2{overflow-wrap:anywhere}
+.btn.ic,button.ic{width:38px;height:38px;padding:0;display:inline-grid;place-items:center}.ic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .btn,button{display:inline-block;border:0;border-radius:999px;padding:9px 20px;background:var(--red);color:#fff;font-size:16px;font-family:inherit;line-height:1.5;text-decoration:none;cursor:pointer;transition:.15s}
 .btn:hover,button:hover{background:var(--red2);transform:translateY(-1px)}
 .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}.btn.ghost:hover{border-color:var(--mute);background:var(--card2)}
@@ -53,6 +60,7 @@ export const about = () => page(`<img class=hero src="/logo.svg" alt=""><h1 styl
 <div class=card><ol class=steps>
 <li><b>Syncs what you watch</b><p>Plays in AIOStreams go to Trakt, and your Trakt progress fills Continue Watching and Next Up.</p></li>
 <li><b>Shows your Trakt lists</b><p>Recommendations, favorites, your own lists and more appear as catalogs in AIOStreams.</p></li>
+<li><b>Adds a calendar</b><p>Your upcoming episodes and movies, as a feed for your phone calendar.</p></li>
 </ol></div>
 <footer style="display:grid;gap:10px"><a class=btn href="/auth" style="display:block;text-align:center">Configure addon</a><a class="btn ghost" href="/help" style="display:block;text-align:center">Help</a></footer>`);
 
@@ -87,6 +95,18 @@ export const help = () => page(`<h1>Help</h1><p class=sub>Everything you need to
 <li>Add <code>?r=2</code> to the very end of the address, just before the closing quote.</li>
 <li>Save. If it still does not change, use <code>?r=3</code>, then <code>?r=4</code>, and so on. Any new number works.</li>
 </ol>
+<p style="margin:12px 0 0"><b>Still not changing?</b> Restart the AIOStreams container, for example with <code>docker compose down</code> and then <code>docker compose up -d</code> in its folder. This clears its cache. Do not reinstall the addon.</p>
 <p class=sub style="margin:12px 0 0">Anyone with a user's address can see that user's chosen lists, so do not share it.</p>
+</div></div>
+<h2 style="margin-top:28px">Add a calendar</h2>
+<p class=sub style="margin:12px 0">Optional. Shows each user's upcoming episodes and movies in a phone calendar. Needs no variant.</p>
+<div class=card><ol class=steps>
+<li><b>Copy the link</b><p>Press Configure addon, then the calendar icon next to a connected user. Each user has their own link.</p></li>
+<li><b>Subscribe to it</b><p>Android: add it in ICSx⁵, then tick the new calendar in your calendar app. Google Calendar on the web: Other calendars, From URL. iPhone: Settings, Calendar, Accounts, Add Subscribed Calendar.</p></li>
+</ol></div>
+<div class=card style="margin-top:12px"><div style="padding:14px">
+<p style="margin:0">The link has to be reachable from your phone. If it starts with <code>http://localhost</code>, open this page using the server's real address first, or set <code>PUBLIC_URL</code>. Google Calendar needs a public <code>https://</code> address.</p>
+<p style="margin:10px 0 0">A season released on one day is a single event, such as <code>Show S02 (E01-E10)</code>, with every episode listed in its description. Weekly shows get one event per episode. New episodes can take a few hours to appear, because apps refresh on their own schedule.</p>
+<p class=sub style="margin:12px 0 0">Anyone with a user's calendar link can see that user's upcoming shows, so do not share it.</p>
 </div></div>
 <footer><a class="btn ghost" href="/" style="display:block;text-align:center">Back</a></footer>`);

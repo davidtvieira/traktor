@@ -4,8 +4,9 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { api, AuthError, TraktError, UnknownViewerError, viewerContext, knownViewers, viewerStates, deleteTokens, catalogKey, viewerByKey, getPicks, setPicks, writeFileAtomic, TOKEN_FILE, CLIENT_ID, REDIRECT_URI, exchangeCode } from './trakt.js';
-import { esc, page, msg, about, help } from './ui.js';
+import { esc, page, msg, about, help, ICONS } from './ui.js';
 import { listsManifest, catalogMetas, availableLists } from './lists.js';
+import { calendarIcs } from './calendar.js';
 
 const LOGO = fs.readFileSync(new URL('./logo.svg', import.meta.url));
 
@@ -135,49 +136,86 @@ async function fixNumbering(ev) {
   }
 }
 
+// ---------- logging ----------
+// One line per thing the addon does, tagged with the AIOStreams user it was done for.
+const who = (v) => {
+  if (v === undefined) { const store = viewerContext.getStore(); if (!store) return 'system'; v = store.viewer || ''; }
+  return (usersCache.list?.find((u) => u.id === v)?.name || v || 'primary').toLowerCase();
+};
+const log = (msg, v) => console.log(`${new Date().toISOString().slice(11, 19)} [${who(v)}] ${msg}`);
+
+const tally = (o) => Object.entries(o || {}).map(([k, v]) => [k, Array.isArray(v) ? v.length : v]).filter(([, n]) => n).map(([k, n]) => `${k}=${n}`).join(' ');
+function outcome(r) {
+  if (r?.duplicate) return 'already scrobbled (409)';
+  if (!r) return 'ok';
+  if (r.action) return `ok, Trakt saved: ${r.action}${r.progress != null ? ` at ${Math.round(r.progress * 10) / 10}%` : ''}`;
+  const parts = [['added', r.added], ['deleted', r.deleted], ['updated', r.updated], ['already there', r.existing], ['NOT FOUND', r.not_found]]
+    .map(([label, o]) => { const t = tally(o); return t && `${label} ${t}`; }).filter(Boolean);
+  return parts.join(', ') || (r.added || r.deleted ? 'nothing changed' : 'ok');
+}
+const pad2 = (n) => String(n).padStart(2, '0');
+function what(ev) {
+  const id = ev.ids?.imdb || ev.metaId || '?';
+  if (ev.scope === 'season') return `${id} S${pad2(ev.season)}`;
+  if (ev.scope === 'episode') return `${id} S${pad2(ev.season)}E${pad2(ev.episode)}`;
+  return id;
+}
+const LABELS = { start: 'play', pause: 'pause', stop: 'stop', played: 'watched', unplayed: 'unwatched', watchlisted: 'watchlist+', unwatchlisted: 'watchlist-', dropped: 'dropped', undropped: 'undropped', rated: 'rated', unrated: 'unrated' };
+
 // ---------- push ----------
+const SKIPPED = Symbol('skipped');
 async function handlePush(ev) {
   await fixNumbering(ev);
+  const label = (ev.event === 'stop' && ev.played ? 'watched' : LABELS[ev.event] || ev.event).padEnd(10);
+  const pct = ['start', 'pause', 'stop'].includes(ev.event) && ev.durationMs ? ` ${Math.round((ev.positionMs / ev.durationMs) * 100)}%` : '';
+  try {
+    const r = await sendPush(ev);
+    log(`${label}${what(ev)}${pct} -> ${r === SKIPPED ? 'skipped (no ids or no duration)' : outcome(r)}`);
+  } catch (e) {
+    log(`${label}${what(ev)}${pct} -> FAILED ${e.message}`);
+    e.logged = true;
+    throw e;
+  }
+}
+
+async function sendPush(ev) {
   const bulk = ev.videos && (ev.scope === 'season' || ev.scope === 'series');
   switch (ev.event) {
     case 'start': case 'pause': {
-      const b = scrobbleBody(ev); if (!b || !ev.durationMs) return;
+      const b = scrobbleBody(ev); if (!b || !ev.durationMs) return SKIPPED;
       return scrobble(ev.event, b);
     }
     case 'stop': {
       if (ev.played) return syncHistory(ev);
-      const b = scrobbleBody(ev); if (!b || !ev.durationMs) return;
+      const b = scrobbleBody(ev); if (!b || !ev.durationMs) return SKIPPED;
       return scrobble('stop', b);
     }
     case 'played': {
       const body = bulk ? bulkBody(ev) : syncBody(ev, true);
-      return body && api('POST', '/sync/history', body);
+      return body ? api('POST', '/sync/history', body) : SKIPPED;
     }
     case 'unplayed': {
       const body = bulk ? bulkBody(ev) : syncBody(ev);
-      return body && api('POST', '/sync/history/remove', body);
+      return body ? api('POST', '/sync/history/remove', body) : SKIPPED;
     }
-    case 'watchlisted': { const b = syncBody(ev); return b && api('POST', '/sync/watchlist', b); }
-    case 'unwatchlisted': { const b = syncBody(ev); return b && api('POST', '/sync/watchlist/remove', b); }
-    case 'dropped': { const b = showOnly(ev); return b && api('POST', '/users/hidden/dropped', b); }
-    case 'undropped': { const b = showOnly(ev); return b && api('POST', '/users/hidden/dropped/remove', b); }
-    case 'rated': {
-      const b = ratingBody(ev); return b && api('POST', '/sync/ratings', b);
-    }
-    case 'unrated': {
-      const b = ratingBody(ev); return b && api('POST', '/sync/ratings/remove', b);
-    }
+    case 'watchlisted': { const b = syncBody(ev); return b ? api('POST', '/sync/watchlist', b) : SKIPPED; }
+    case 'unwatchlisted': { const b = syncBody(ev); return b ? api('POST', '/sync/watchlist/remove', b) : SKIPPED; }
+    case 'dropped': { const b = showOnly(ev); return b ? api('POST', '/users/hidden/dropped', b) : SKIPPED; }
+    case 'undropped': { const b = showOnly(ev); return b ? api('POST', '/users/hidden/dropped/remove', b) : SKIPPED; }
+    case 'rated': { const b = ratingBody(ev); return b ? api('POST', '/sync/ratings', b) : SKIPPED; }
+    case 'unrated': { const b = ratingBody(ev); return b ? api('POST', '/sync/ratings/remove', b) : SKIPPED; }
   }
+  return SKIPPED;
 }
 
 async function syncHistory(ev) {
   const b = syncBody(ev, true);
-  return b && api('POST', '/sync/history', b);
+  return b ? api('POST', '/sync/history', b) : SKIPPED;
 }
 
 async function scrobble(kind, body) {
   try { return await api('POST', `/scrobble/${kind}`, body); }
-  catch (e) { if (e instanceof TraktError && e.status === 409) return; throw e; } // already scrobbled recently
+  catch (e) { if (e instanceof TraktError && e.status === 409) return { duplicate: true }; throw e; } // already scrobbled recently
 }
 
 function showOnly(ev) {
@@ -299,6 +337,7 @@ async function handlePull(since) {
     }
     return [];
   });
+  log(`pull -> ${episodes.length} watched episodes, ${movies.length} movies, ${out.items.length} in progress, ${out.watchlist.length} watchlisted`);
   return out;
 }
 
@@ -333,13 +372,14 @@ async function authIndex(req) {
     const sub = u.owner ? 'Primary user' : u.shared ? "Shares the primary user's history" : 'Household user';
     return `<div class=user><div class=av>${esc((u.name || '?').slice(0, 1).toUpperCase())}</div>
 <div class=who><b title="${esc(u.name)}">${esc(u.name)}</b><span>${sub}</span></div>
-${st === 'ok' ? `<a class="btn ghost" href="${u.owner ? '?lists=1&owner=1' : `?lists=1&viewer=${encodeURIComponent(u.id)}`}">Lists</a>` : ''}
+${st === 'ok' ? `<button type=button class="ghost ic" title="Copy calendar link" aria-label="Copy calendar link" data-url="${esc(`${publicBase(req)}/u/${catalogKey(u.id)}/calendar.ics`)}" onclick="cp(this)">${ICONS.calendar}</button>` : ''}
+${st === 'ok' ? `<a class="btn ghost ic" title="Lists" aria-label="Lists" href="${u.owner ? '?lists=1&owner=1' : `?lists=1&viewer=${encodeURIComponent(u.id)}`}">${ICONS.lists}</a>` : ''}
 ${st === 'ok'
-  ? `<form method=post style="margin:0" onsubmit="return confirm('Disconnect ${esc(u.name).replace(/'/g,"")} from Trakt?')"><input type=hidden name=disconnect value="${esc(u.id)}"><button class="ghost">Disconnect</button></form>`
+  ? `<form method=post style="margin:0" onsubmit="return confirm('Disconnect ${esc(u.name).replace(/'/g,"")} from Trakt?')"><input type=hidden name=disconnect value="${esc(u.id)}"><button class="ghost ic" title="Disconnect" aria-label="Disconnect">${ICONS.unlink}</button></form>`
   : `<a class=btn href="${href}">${st === 'reauth' ? 'Reconnect' : 'Connect'}</a>`}</div>`;
   }).join('');
-  return page(`<h1>AIOStreams users</h1><p class=sub>Connect each AIOStreams user to their Trakt account.</p><div class=card>${rows}</div><footer style="display:grid;gap:10px"><button type=button data-url="${esc(publicBase(req))}/manifest.json" onclick="cp(this)" style="width:100%">Copy manifest</button><a class="btn ghost" href="/" style="display:block;text-align:center">Back</a></footer><script>function cp(b){var e=document.createElement('textarea'),ok=false;e.value=b.dataset.url;document.body.appendChild(e);e.select();try{ok=document.execCommand('copy')}catch(x){}
-document.body.removeChild(e);if(!ok&&navigator.clipboard){navigator.clipboard.writeText(b.dataset.url);ok=true}b.textContent=ok?'Copied':'Copy failed'}</script>`);
+  return page(`<h1>AIOStreams users</h1><p class=sub>Connect each AIOStreams user to their Trakt account.</p><div class=card>${rows}</div><footer style="display:grid;gap:10px"><button type=button data-url="${esc(publicBase(req))}/manifest.json" onclick="cp(this)" style="width:100%">Copy manifest</button><a class="btn ghost" href="/" style="display:block;text-align:center">Back</a></footer><script>function cp(b){var e=document.createElement('textarea'),ok=false,l=b.dataset.l||(b.dataset.l=b.textContent);e.value=b.dataset.url;document.body.appendChild(e);e.select();try{ok=document.execCommand('copy')}catch(x){}
+document.body.removeChild(e);if(!ok&&navigator.clipboard){navigator.clipboard.writeText(b.dataset.url);ok=true}if(b.classList.contains('ic'))return toast(ok?'Calendar link copied':'Copy failed',!ok);b.textContent=ok?'Copied':'Copy failed';setTimeout(function(){b.textContent=l},2000)}</script>`);
 }
 
 const publicBase = (req) => (process.env.PUBLIC_URL || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`).replace(/\/$/, '');
@@ -401,13 +441,16 @@ async function authSubmit(raw) {
   if (f.has('listsfor')) {
     const lv = cleanViewer(f.get('listsfor'));
     if (!knownViewers().includes(lv)) return msg('err', 'Not connected', 'Connect this user to Trakt first.');
-    setPicks(lv, f.getAll('pick').filter((x) => /^[a-z0-9-]{1,40}$/.test(x)));
+    const picks = f.getAll('pick').filter((x) => /^[a-z0-9-]{1,40}$/.test(x));
+    setPicks(lv, picks);
+    log(`lists saved: ${picks.length} selected`, lv);
     return msg('good', 'Lists saved', 'AIOStreams may take a few minutes to show the change. Save the addon there again if it does not.');
   }
   if (f.has('disconnect')) {
     const v = cleanViewer(f.get('disconnect'));
     if (!knownViewers().includes(v)) return msg('err', 'Not connected', 'That user has no Trakt account linked.');
     deleteTokens(v);
+    log('disconnected from Trakt', v);
     return msg('good', 'Disconnected', 'The Trakt account was unlinked. You can connect it again from the list.');
   }
   let input = (f.get('url') || '').trim(), code = input, state = f.get('state');
@@ -416,6 +459,7 @@ async function authSubmit(raw) {
   if (!p || !code) return msg('err', 'Expired or invalid', 'Start again from the list.');
   pending.delete(state);
   await exchangeCode(code, p.verifier, p.viewer);
+  log('connected to Trakt', p.viewer);
   return msg('good', 'Connected', 'Trakt is linked. Syncing starts automatically.');
 }
 
@@ -443,7 +487,6 @@ const server = http.createServer(async (req, res) => {
     if (!isAuth && SECRET && !(url.pathname.startsWith(PREFIX + '/') && safeEq(url.pathname.split('/')[1], SECRET))) return send(res, 404, { error: 'not found' });
     const p = isAuth ? '/auth' : url.pathname.slice(PREFIX.length);
     const viewer = cleanViewer(url.searchParams.get('viewer'));
-    console.log(req.method, p, viewer ? `viewer=${viewer}` : '');
 
     if (p === '/auth') {
       const html = (code, body) => { res.writeHead(code, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(body); };
@@ -455,7 +498,7 @@ const server = http.createServer(async (req, res) => {
         if (req.method === 'POST') {
           return html(200, await authSubmit(await readBody(req, 20_000)));
         }
-      } catch (e) { return html(400, msg('err', 'Something went wrong', esc(e.message).slice(0, 300))); }
+      } catch (e) { log(`ERROR auth page: ${e.message}`); return html(400, msg('err', 'Something went wrong', esc(e.message).slice(0, 300))); }
     }
     return await viewerContext.run({ viewer }, () => route(req, res, url, p));
   } catch (e) { return fail(res, e); }
@@ -463,15 +506,25 @@ const server = http.createServer(async (req, res) => {
 server.headersTimeout = 15_000;
 server.requestTimeout = 30_000;
 server.listen(PORT, '0.0.0.0', () => console.log(`traktor on :${PORT}`));
+// Keeps user names fresh so log lines say [david] instead of [primary].
+aioUsers().catch(() => {});
+setInterval(() => aioUsers().catch(() => {}), 600_000).unref();
 
 // A user's own address serves everything for that user: watch state, and their Trakt lists as catalogs.
 async function listsRoute(req, res, viewer, url, rest) {
   try {
-    console.log(req.method, 'lists', viewer ? `viewer=${viewer}` : 'viewer=primary', rest.startsWith('watch_state') ? rest.split('/').slice(0, 2).join('/') : rest);
     if (rest === 'manifest.json' && req.method === 'GET') {
       const lists = await listsManifest(viewer, `${publicBase(req)}/logo.svg`);
+      log(`manifest -> ${lists.catalogs.length} list catalogs`);
       return send(res, 200, { ...manifest, ...lists, id: `com.local.traktor.${viewer || 'primary'}`, name: 'Traktor',
         description: 'Syncs playback with Trakt and shows your Trakt lists', resources: [...manifest.resources, 'catalog'] });
+    }
+    if (rest === 'calendar.ics' && req.method === 'GET') {
+      const name = (await aioUsers().catch(() => [])).find((u) => u.id === viewer)?.name;
+      const ics = await calendarIcs(viewer, name ? `Traktor - ${name}` : 'Traktor');
+      res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'inline; filename="traktor.ics"', 'Cache-Control': 'private, max-age=900' });
+      log(`calendar -> ${(ics.match(/BEGIN:VEVENT/g) || []).length} events`);
+      return res.end(ics);
     }
     if (rest.startsWith('watch_state/')) {
       // An address belongs to one user: a call that names a different user is dropped, never written to this account.
@@ -481,7 +534,9 @@ async function listsRoute(req, res, viewer, url, rest) {
     const m = rest.match(/^catalog\/(movie|series)\/([\w-]+)(?:\/([^/]+))?\.json$/);
     if (m && req.method === 'GET') {
       const skip = Number(decodeURIComponent(m[3] || '').match(/skip=(\d+)/)?.[1] || 0);
-      return send(res, 200, { metas: await catalogMetas(viewer, m[1], m[2], skip) });
+      const metas = await catalogMetas(viewer, m[1], m[2], skip);
+      log(`catalog ${m[1]} ${m[2]}${skip ? ` from ${skip}` : ''} -> ${metas.length} titles`);
+      return send(res, 200, { metas });
     }
     return send(res, 404, { error: 'not found' });
   } catch (e) { return fail(res, e); }
@@ -496,7 +551,6 @@ async function watchStateRoute(req, res, url, p) {
   if (req.method === 'POST' && p.startsWith('/watch_state/push/')) {
     const ev = JSON.parse(await readBody(req));
     await handlePush(ev);
-    console.log(`push ${ev.event} ${ev.scope || ''} ${ev.metaId || ''} ${ev.videoId || ''}`);
     send(res, 200, { ok: true });
     return true;
   }
@@ -517,7 +571,7 @@ async function route(req, res, url, p) {
 }
 
 function fail(res, e) {
-  console.error(e.message);
+  if (!e.logged) log(`ERROR ${e.message}`);
   if (e.tooLarge) return send(res, 413, { error: e.message });
   if (e instanceof UnknownViewerError) return send(res, 404, { error: 'unknown viewer' });   // dropped, not retried
   if (e instanceof AuthError) return send(res, 401, { error: e.message });
