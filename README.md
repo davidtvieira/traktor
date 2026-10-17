@@ -6,6 +6,7 @@ Syncs AIOStreams with Trakt, one Trakt account per AIOStreams user.
 
 - Plays from the AIOStreams app and Jellyfin clients go to Trakt.
 - Your Trakt progress, history, watchlist, ratings and dropped shows fill Continue Watching and Next Up.
+- Your Trakt lists (recommendations, favorites, collection, your own, smart and liked lists, and Trakt's charts) can show as catalogs.
 
 Stremio playback is not reported to addons, so it is not synced.
 
@@ -29,33 +30,6 @@ Stremio playback is not reported to addons, so it is not synced.
    ```
 
    This pulls `davidtvieira/traktor` from Docker Hub (`docker pull davidtvieira/traktor`; also published as `ghcr.io/davidtvieira/traktor`). To build from source instead: `docker compose -f compose.yaml -f compose.build.yaml up -d --build`.
-
-## Install in AIOStreams
-
-1. **Addons → Marketplace → Custom Addon**, paste `http://<host-ip>:7100/manifest.json` (add `/<ADDON_SECRET>` before `/manifest.json` if set), **Install**, then **Save**.
-2. Reload the page. Under **Save & Install → Users, trackers and playback → Trackers**, check that every user has this addon picked. If not, pick it under **Users → \<user\> → \<this addon\>**.
-
-## Connect Trakt accounts
-
-Open `http://<host-ip>:7100/auth`. For each AIOStreams user:
-
-1. Click **Connect**, sign in to Trakt as that person, click **Open Trakt** and approve.
-2. Trakt redirects to your redirect URI, which may show an error. Copy the full address from the address bar (it contains `?code=...`), paste it in the form and click **Finish**.
-
-Each user has one button: **Connect**, **Disconnect** (unlinks the user) or **Reconnect** (shown when Trakt rejected the saved login). Users who share the primary user's history use the primary user's account.
-
-## Files
-
-- `data/tokens.json`: the Trakt logins. Back it up; losing it means reconnecting everyone.
-- `data/cache.json`: speeds up restarts. Safe to delete.
-
-## Troubleshooting
-
-- **`invalid_redirect`:** `TRAKT_REDIRECT_URI` must be `https://` and match the Trakt app exactly.
-- **"Expired or invalid" after pasting:** the Connect link lasts 15 minutes. Click **Connect** and try again.
-- **`/auth` shows an AIOStreams error:** check `AIOSTREAMS_URL`, `AIOSTREAMS_UUID` and `AIOSTREAMS_PASSWORD`.
-- **Tracker shows "Failed":** wait a few minutes and check `docker compose logs`.
-- **Health check:** `GET /healthz`.
 
 ---
 

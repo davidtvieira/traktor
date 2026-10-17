@@ -3,8 +3,9 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { api, AuthError, TraktError, UnknownViewerError, viewerContext, knownViewers, viewerStates, deleteTokens, writeFileAtomic, TOKEN_FILE, CLIENT_ID, REDIRECT_URI, exchangeCode } from './trakt.js';
-import { esc, page, msg, about } from './ui.js';
+import { api, AuthError, TraktError, UnknownViewerError, viewerContext, knownViewers, viewerStates, deleteTokens, catalogKey, viewerByKey, getPicks, setPicks, writeFileAtomic, TOKEN_FILE, CLIENT_ID, REDIRECT_URI, exchangeCode } from './trakt.js';
+import { esc, page, msg, about, help } from './ui.js';
+import { listsManifest, catalogMetas, availableLists } from './lists.js';
 
 const LOGO = fs.readFileSync(new URL('./logo.svg', import.meta.url));
 
@@ -323,7 +324,7 @@ async function aioUsers() {
   return list;
 }
 
-async function authIndex() {
+async function authIndex(req) {
   const users = await aioUsers();
   const states = viewerStates();
   const rows = users.map((u) => {
@@ -332,18 +333,50 @@ async function authIndex() {
     const sub = u.owner ? 'Primary user' : u.shared ? "Shares the primary user's history" : 'Household user';
     return `<div class=user><div class=av>${esc((u.name || '?').slice(0, 1).toUpperCase())}</div>
 <div class=who><b title="${esc(u.name)}">${esc(u.name)}</b><span>${sub}</span></div>
+${st === 'ok' ? `<a class="btn ghost" href="${u.owner ? '?lists=1&owner=1' : `?lists=1&viewer=${encodeURIComponent(u.id)}`}">Lists</a>` : ''}
 ${st === 'ok'
-  ? `<form method=post style="margin:0"><input type=hidden name=disconnect value="${esc(u.id)}"><button class="ghost">Disconnect</button></form>`
+  ? `<form method=post style="margin:0" onsubmit="return confirm('Disconnect ${esc(u.name).replace(/'/g,"")} from Trakt?')"><input type=hidden name=disconnect value="${esc(u.id)}"><button class="ghost">Disconnect</button></form>`
   : `<a class=btn href="${href}">${st === 'reauth' ? 'Reconnect' : 'Connect'}</a>`}</div>`;
   }).join('');
-  return page(`<h1>AIOStreams users</h1><p class=sub>Connect each AIOStreams user to their Trakt account.</p><div class=card>${rows}</div>`);
+  return page(`<h1>AIOStreams users</h1><p class=sub>Connect each AIOStreams user to their Trakt account.</p><div class=card>${rows}</div><footer style="display:grid;gap:10px"><button type=button data-url="${esc(publicBase(req))}/manifest.json" onclick="cp(this)" style="width:100%">Copy manifest</button><a class="btn ghost" href="/" style="display:block;text-align:center">Back</a></footer><script>function cp(b){var e=document.createElement('textarea'),ok=false;e.value=b.dataset.url;document.body.appendChild(e);e.select();try{ok=document.execCommand('copy')}catch(x){}
+document.body.removeChild(e);if(!ok&&navigator.clipboard){navigator.clipboard.writeText(b.dataset.url);ok=true}b.textContent=ok?'Copied':'Copy failed'}</script>`);
 }
 
-async function authPage(url) {
-  if (!url.searchParams.has('viewer') && !url.searchParams.has('owner')) return authIndex();
+const publicBase = (req) => (process.env.PUBLIC_URL || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`).replace(/\/$/, '');
+
+async function listsPage(req, viewer, user) {
+  const key = catalogKey(viewer);
+  if (!key) return msg('err', 'Not connected', 'Connect this user to Trakt first.');
+  let avail;
+  try { avail = await viewerContext.run({ viewer }, () => availableLists(viewer, true)); }
+  catch (e) { return msg('err', 'Could not load lists', esc(e.message).slice(0, 300)); }
+  const picks = getPicks(viewer);
+  const groups = [...new Set(avail.map((l) => l.group))];
+  const boxes = groups.map((g) => `<b style="display:block;margin:14px 0 4px;color:var(--mute);font-size:13px">${esc(g)}</b>`
+    + avail.filter((l) => l.group === g).map((l) => `<label style="display:flex;align-items:center;padding:5px 0"><input type=checkbox name=pick value="${esc(l.id)}" style="width:auto;margin:0 12px 0 0"${(picks ? picks.includes(l.id) : l.defaultOn) ? ' checked' : ''}>${esc(l.name)}</label>`).join('')).join('');
+  const addr = `${publicBase(req)}/u/${key}/manifest.json`;
+  const script = `enable presets[options.name="Traktor"]\nset presets[options.name="Traktor"].options.manifestUrl = "${addr}"`;
+  // The clipboard API needs HTTPS, so copy through a temporary textarea with the older copy command, which works on plain http.
+  const copyJs = `<script>function cp(b){var e=document.createElement('textarea'),ok=false;e.value=b.dataset.url;document.body.appendChild(e);e.select();try{ok=document.execCommand('copy')}catch(x){}
+document.body.removeChild(e);if(!ok&&navigator.clipboard){navigator.clipboard.writeText(b.dataset.url);ok=true}b.textContent=ok?'Copied':'Copy failed'}</script>`;
+  const saveJs = `<script>function saveLists(f){var b=f.querySelector('button');b.disabled=true;
+fetch('',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(new FormData(f))})
+.then(function(r){return r.text().then(function(t){toast(r.ok&&t.indexOf('msg good')>-1?'Lists saved':'Could not save lists',!(r.ok&&t.indexOf('msg good')>-1))})})
+.catch(function(){toast('Could not save lists',true)}).then(function(){b.disabled=false});return false}</script>`;
+  return page(`<h1>Lists for ${esc(user.name)}</h1><p class=sub>Choose which of this user's Trakt lists to show as catalogs.</p>
+<form method=post class=card onsubmit="return saveLists(this)"><div style="padding:14px"><input type=hidden name=listsfor value="${esc(viewer)}"><div>${boxes}</div><div style="margin-top:12px"><button style="width:100%">Save lists</button></div></div></form>
+<div class=card style="margin-top:16px"><div style="padding:14px"><b>Variant for AIOStreams</b>
+<p class=sub style="margin-top:10px">In AIOStreams create a variant named <code>${esc(user.name.toLowerCase())}</code>, paste this as its script, and pick it for this user under Users. It points the <code>Traktor</code> addon at this user's own address, for their watch state and their lists. Anyone with the address can see the chosen lists.</p>
+<button type=button data-url="${esc(script)}" onclick="cp(this)" style="width:100%;margin-top:6px">Copy script</button></div></div>
+<footer><a class="btn ghost" href="?" style="display:block;text-align:center">Back</a></footer>${copyJs}${saveJs}`);
+}
+
+async function authPage(url, req) {
+  if (!url.searchParams.has('viewer') && !url.searchParams.has('owner')) return authIndex(req);
   const viewer = url.searchParams.has('owner') ? '' : cleanViewer(url.searchParams.get('viewer'));
   const user = (await aioUsers()).find((u) => u.id === viewer);
   if (!user) return msg('err', 'Unknown user', 'That user does not exist in AIOStreams.');
+  if (url.searchParams.has('lists')) return listsPage(req, viewer, user);
   for (const [k, v] of pending) if (Date.now() - v.at > 15 * 60 * 1000) pending.delete(k);
   const state = crypto.randomBytes(16).toString('hex');
   const verifier = crypto.randomBytes(48).toString('base64url');
@@ -360,11 +393,17 @@ async function authPage(url) {
 <li><b>Paste the ${OOB ? 'code' : 'address'}</b><p>${OOB ? 'Trakt shows an authorization code. Copy it and paste it below.' : `Trakt redirects to <code>${esc(REDIRECT_URI)}</code>, which may show an error page. Copy the full address from the address bar and paste it below.`}</p>
 <form method=post><input type=hidden name=state value="${state}">
 <input name=url placeholder="${OOB ? 'Authorization code' : esc(REDIRECT_URI) + '?code=...'}" required autocomplete=off><button>Finish</button></form></li>
-</ol></div><footer><a class="btn ghost" href="?">Back</a></footer>`);
+</ol></div><footer><a class="btn ghost" href="?" style="display:block;text-align:center">Back</a></footer>`);
 }
 
 async function authSubmit(raw) {
   const f = new URLSearchParams(raw);
+  if (f.has('listsfor')) {
+    const lv = cleanViewer(f.get('listsfor'));
+    if (!knownViewers().includes(lv)) return msg('err', 'Not connected', 'Connect this user to Trakt first.');
+    setPicks(lv, f.getAll('pick').filter((x) => /^[a-z0-9-]{1,40}$/.test(x)));
+    return msg('good', 'Lists saved', 'AIOStreams may take a few minutes to show the change. Save the addon there again if it does not.');
+  }
   if (f.has('disconnect')) {
     const v = cleanViewer(f.get('disconnect'));
     if (!knownViewers().includes(v)) return msg('err', 'Not connected', 'That user has no Trakt account linked.');
@@ -392,7 +431,14 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
     if (url.pathname === '/healthz') return send(res, 200, { ok: true });
     if (req.method === 'GET' && url.pathname === '/logo.svg') { res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' }); return res.end(LOGO); }
+    if (req.method === 'GET' && url.pathname === '/help') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(help()); }
     if (req.method === 'GET' && url.pathname === '/') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(about()); }
+    const lm = url.pathname.match(/^\/u\/([a-f0-9]{32})\/(.+)$/);       // private lists address (primary user)
+    if (lm) {
+      const lv = viewerByKey(lm[1]);
+      if (lv === null) return send(res, 404, { error: 'not found' });
+      return await viewerContext.run({ viewer: lv }, () => listsRoute(req, res, lv, url, lm[2]));
+    }
     const isAuth = url.pathname === '/auth';            // short address, no secret (meant for a private network / VPN)
     if (!isAuth && SECRET && !(url.pathname.startsWith(PREFIX + '/') && safeEq(url.pathname.split('/')[1], SECRET))) return send(res, 404, { error: 'not found' });
     const p = isAuth ? '/auth' : url.pathname.slice(PREFIX.length);
@@ -405,7 +451,7 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'POST' && req.headers.origin && new URL(req.headers.origin).host !== req.headers.host) return html(403, msg('err', 'Blocked', 'Cross-site request refused.'));
       if (!CLIENT_ID) return html(500, msg('err', 'Not configured', 'TRAKT_CLIENT_ID is not set.'));
       try {
-        if (req.method === 'GET') return html(200, await authPage(url));
+        if (req.method === 'GET') return html(200, await authPage(url, req));
         if (req.method === 'POST') {
           return html(200, await authSubmit(await readBody(req, 20_000)));
         }
@@ -418,6 +464,45 @@ server.headersTimeout = 15_000;
 server.requestTimeout = 30_000;
 server.listen(PORT, '0.0.0.0', () => console.log(`traktor on :${PORT}`));
 
+// A user's own address serves everything for that user: watch state, and their Trakt lists as catalogs.
+async function listsRoute(req, res, viewer, url, rest) {
+  try {
+    console.log(req.method, 'lists', viewer ? `viewer=${viewer}` : 'viewer=primary', rest.startsWith('watch_state') ? rest.split('/').slice(0, 2).join('/') : rest);
+    if (rest === 'manifest.json' && req.method === 'GET') {
+      const lists = await listsManifest(viewer, `${publicBase(req)}/logo.svg`);
+      return send(res, 200, { ...manifest, ...lists, id: `com.local.traktor.${viewer || 'primary'}`, name: 'Traktor',
+        description: 'Syncs playback with Trakt and shows your Trakt lists', resources: [...manifest.resources, 'catalog'] });
+    }
+    if (rest.startsWith('watch_state/')) {
+      // An address belongs to one user: a call that names a different user is dropped, never written to this account.
+      if (cleanViewer(url.searchParams.get('viewer')) !== viewer) return send(res, 404, { error: 'unknown viewer' });
+      if (await watchStateRoute(req, res, url, `/${rest}`)) return;
+    }
+    const m = rest.match(/^catalog\/(movie|series)\/([\w-]+)(?:\/([^/]+))?\.json$/);
+    if (m && req.method === 'GET') {
+      const skip = Number(decodeURIComponent(m[3] || '').match(/skip=(\d+)/)?.[1] || 0);
+      return send(res, 200, { metas: await catalogMetas(viewer, m[1], m[2], skip) });
+    }
+    return send(res, 404, { error: 'not found' });
+  } catch (e) { return fail(res, e); }
+}
+
+// The watch_state calls, shared by the plain addon and the per-user address. True when handled.
+async function watchStateRoute(req, res, url, p) {
+  if (req.method === 'GET' && p === '/watch_state/pull.json') {
+    send(res, 200, await handlePull(url.searchParams.get('since') || ''));
+    return true;
+  }
+  if (req.method === 'POST' && p.startsWith('/watch_state/push/')) {
+    const ev = JSON.parse(await readBody(req));
+    await handlePush(ev);
+    console.log(`push ${ev.event} ${ev.scope || ''} ${ev.metaId || ''} ${ev.videoId || ''}`);
+    send(res, 200, { ok: true });
+    return true;
+  }
+  return false;
+}
+
 async function route(req, res, url, p) {
   try {
 
@@ -426,17 +511,7 @@ async function route(req, res, url, p) {
       return send(res, 200, { ...manifest, logo: `${proto}://${req.headers.host}/logo.svg` });
     }
 
-    if (req.method === 'GET' && p === '/watch_state/pull.json') {
-      const since = url.searchParams.get('since') || '';
-      return send(res, 200, await handlePull(since));
-    }
-
-    if (req.method === 'POST' && p.startsWith('/watch_state/push/')) {
-      const ev = JSON.parse(await readBody(req));
-      await handlePush(ev);
-      console.log(`push ${ev.event} ${ev.scope || ''} ${ev.metaId || ''} ${ev.videoId || ''}`);
-      return send(res, 200, { ok: true });
-    }
+    if (await watchStateRoute(req, res, url, p)) return;
     send(res, 404, { error: 'not found' });
   } catch (e) { return fail(res, e); }
 }

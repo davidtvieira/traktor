@@ -1,5 +1,6 @@
 // Minimal Trakt client: token storage/refresh and JSON requests.
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,6 +47,23 @@ export function saveTokens(t, viewer = currentViewer()) {
 export function deleteTokens(viewer) {
   const all = readAll(); delete all[viewer]; writeAll(all);
 }
+// A random key in the private lists address of a connected user.
+export function catalogKey(viewer) {
+  const t = loadTokens(viewer);
+  if (!t) return null;
+  if (!t.key) { t.key = crypto.randomBytes(16).toString('hex'); saveTokens(t, viewer); }
+  return t.key;
+}
+export function viewerByKey(key) {
+  for (const [viewer, t] of Object.entries(readAll())) if (t.key && t.key === key) return viewer;
+  return null;
+}
+// The lists a user ticked (null = all of them).
+export const getPicks = (viewer) => loadTokens(viewer)?.picks ?? null;
+export function setPicks(viewer, picks) {
+  const t = loadTokens(viewer);
+  if (t) saveTokens({ ...t, picks }, viewer);
+}
 export const knownViewers = () => Object.keys(readAll());
 // viewer -> 'ok' | 'reauth' (Trakt rejected the saved login; the user must connect again)
 export const viewerStates = () => Object.fromEntries(Object.entries(readAll()).map(([k, v]) => [k, v.reauth ? 'reauth' : 'ok']));
@@ -69,6 +87,9 @@ export async function exchangeCode(code, verifier, viewer = currentViewer()) {
 
 function storeTokenResponse(j, viewer = currentViewer()) {
   const t = { access_token: j.access_token, refresh_token: j.refresh_token, expires_at: (j.created_at + j.expires_in) * 1000 };
+  const prev = loadTokens(viewer);
+  if (prev?.key) t.key = prev.key;                     // keep the lists address key and picks across refreshes
+  if (prev?.picks) t.picks = prev.picks;
   saveTokens(t, viewer);
   return t;
 }
