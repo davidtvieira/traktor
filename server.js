@@ -3,7 +3,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { api, AuthError, TraktError, UnknownViewerError, viewerContext, knownViewers, viewerStates, deleteTokens, catalogKey, viewerByKey, getPicks, setPicks, writeFileAtomic, TOKEN_FILE, CLIENT_ID, REDIRECT_URI, exchangeCode } from './trakt.js';
+import { api, AuthError, TraktError, UnknownViewerError, viewerContext, knownViewers, viewerStates, deleteTokens, catalogKey, viewerByKey, getPicks, getRev, setPicks, writeFileAtomic, TOKEN_FILE, CLIENT_ID, REDIRECT_URI, exchangeCode } from './trakt.js';
 import { esc, page, msg, about, help, ICONS } from './ui.js';
 import { listsManifest, catalogMetas, availableLists } from './lists.js';
 import { calendarIcs } from './calendar.js';
@@ -136,6 +136,40 @@ async function fixNumbering(ev) {
   }
 }
 
+// ---------- last update per user ----------
+// The last event written to Trakt for each user, shown on the users page. Saved with a short delay so it survives restarts.
+const ACTIVITY_FILE = path.join(path.dirname(TOKEN_FILE), 'activity.json');
+let activity = {};
+try { activity = JSON.parse(fs.readFileSync(ACTIVITY_FILE, 'utf8')); } catch { /* none yet */ }
+const HISTORY_MAX = 10;                  // actions kept per user
+let activityTimer = null;
+// text set: an event was written to Trakt. No text: AIOStreams just checked in (a pull).
+function touchActivity(text) {
+  const v = viewerContext.getStore()?.viewer ?? '';
+  const now = Date.now(), a = activity[v] || {};
+  activity[v] = text ? { ...a, at: now, text, seen: now, recent: [{ at: now, text }, ...(a.recent || [])].slice(0, HISTORY_MAX) } : { ...a, seen: now };
+  if (activityTimer) return;
+  activityTimer = setTimeout(() => {
+    activityTimer = null;
+    try { writeFileAtomic(ACTIVITY_FILE, JSON.stringify(activity), 0o600); } catch (e) { console.error('activity save failed:', e.message); }
+  }, 5000);
+  activityTimer.unref();
+}
+function activityLine(a) {
+  if (!a?.seen) return 'No updates yet';
+  if (!a.recent?.length) return `Last sync ${ago(a.seen)}`;
+  const info = `<button type=button class=info title="Last ${HISTORY_MAX} actions" aria-label="Last ${HISTORY_MAX} actions" onclick="hist(this)">i</button>`;
+  const rows = a.recent.map((r) => `<li>${esc(r.text)} <em>${ago(r.at)}</em></li>`).join('');
+  return `Last sync ${ago(a.seen)} ${info}</span><ul class=hist>${rows}</ul><span hidden>`;
+}
+function ago(at) {
+  const m = Math.floor((Date.now() - at) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `${h} h ago` : `${Math.floor(h / 24)} d ago`;
+}
+
 // ---------- logging ----------
 // One line per thing the addon does, tagged with the AIOStreams user it was done for.
 const who = (v) => {
@@ -162,6 +196,27 @@ function what(ev) {
 }
 const LABELS = { start: 'play', pause: 'pause', stop: 'stop', played: 'watched', unplayed: 'unwatched', watchlisted: 'watchlist+', unwatchlisted: 'watchlist-', dropped: 'dropped', undropped: 'undropped', rated: 'rated', unrated: 'unrated' };
 
+// Wording for the history on the users page, e.g. "Marked watched: Ozark S03E04".
+const PHRASES = { start: 'Started', pause: 'Paused', stop: 'Stopped', played: 'Marked watched', unplayed: 'Marked unwatched', watchlisted: 'Added to watchlist', unwatchlisted: 'Removed from watchlist', dropped: 'Dropped', undropped: 'Undropped', rated: 'Rated', unrated: 'Removed rating' };
+const titleCache = new Map();
+async function titleOf(ev) {
+  const imdb = ev.ids?.imdb;
+  if (!imdb) return ev.metaId || 'Unknown title';
+  if (titleCache.has(imdb)) return titleCache.get(imdb);
+  let t = imdb;
+  try {
+    const x = (await api('GET', `/search/imdb/${imdb}`))?.[0];
+    const m = x?.[x.type];
+    if (m?.title) { t = m.year ? `${m.title} (${m.year})` : m.title; setBounded(titleCache, imdb, t, 500); }
+  } catch { /* keep the id */ }
+  return t;
+}
+async function describe(ev, pct) {
+  const verb = ev.event === 'stop' && ev.played ? 'Marked watched' : PHRASES[ev.event] || ev.event;
+  const part = ev.scope === 'season' ? ` S${pad2(ev.season)}` : ev.scope === 'episode' ? ` S${pad2(ev.season)}E${pad2(ev.episode)}` : '';
+  return `${verb}: ${await titleOf(ev)}${part}${pct}`;
+}
+
 // ---------- push ----------
 const SKIPPED = Symbol('skipped');
 async function handlePush(ev) {
@@ -171,8 +226,10 @@ async function handlePush(ev) {
   try {
     const r = await sendPush(ev);
     log(`${label}${what(ev)}${pct} -> ${r === SKIPPED ? 'skipped (no ids or no duration)' : outcome(r)}`);
+    touchActivity(await describe(ev, pct) + (r === SKIPPED ? ' (skipped, no ids)' : ''));
   } catch (e) {
     log(`${label}${what(ev)}${pct} -> FAILED ${e.message}`);
+    touchActivity(`${await describe(ev, pct)} (failed)`);
     e.logged = true;
     throw e;
   }
@@ -278,6 +335,7 @@ async function mapLimit(list, n, fn) {
 
 // ---------- pull ----------
 async function handlePull(since) {
+  touchActivity();
   const act = await api('GET', '/sync/last_activities');
   const version = crypto.createHash('sha1').update(JSON.stringify(act)).digest('hex').slice(0, 16);
 
@@ -347,7 +405,7 @@ const OOB = REDIRECT_URI.startsWith('urn:');
 const pending = new Map();                       // state -> { verifier, viewer, at }
 const cleanViewer = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
 const AIO_URL = (process.env.AIOSTREAMS_URL || '').replace(/\/$/, '');
-let usersCache = { at: 0, list: null };
+let usersCache = { at: 0, list: null, traktorId: null };
 
 // The users of the AIOStreams configuration: the owner (viewer '') plus each household user (viewer = persona id).
 async function aioUsers() {
@@ -356,10 +414,14 @@ async function aioUsers() {
   if (!AIO_URL || !uuid || !pw) throw new Error('Set AIOSTREAMS_URL, AIOSTREAMS_UUID and AIOSTREAMS_PASSWORD in .env');
   const res = await fetch(`${AIO_URL}/api/v1/user`, { headers: { Authorization: 'Basic ' + Buffer.from(`${uuid}:${pw}`).toString('base64') } });
   if (!res.ok) throw new Error(`AIOStreams user lookup failed (${res.status})`);
-  const j = (await res.json()).data?.userData?.jellyfin || {};
+  const userData = (await res.json()).data?.userData || {};
+  const j = userData.jellyfin || {};
+  // AIOStreams names the addon its preset id plus the first 4 characters of the hash of the addon's identifier, which a custom addon has none of.
+  const presetId = (userData.presets || []).find((p) => p.options?.name === 'Traktor')?.instanceId;
+  const traktorId = presetId ? presetId + crypto.createHash('sha256').update('').digest('hex').slice(0, 4) : null;
   const list = [{ id: '', name: j.primary?.name || 'Primary user', owner: true }];
   for (const p of j.personas || []) list.push({ id: p.id, name: p.name, shared: p.history === 'shared' });
-  usersCache = { at: Date.now(), list };
+  usersCache = { at: Date.now(), list, traktorId };
   return list;
 }
 
@@ -371,15 +433,17 @@ async function authIndex(req) {
     const st = states[u.id];
     const sub = u.owner ? 'Primary user' : u.shared ? "Shares the primary user's history" : 'Household user';
     return `<div class=user><div class=av>${esc((u.name || '?').slice(0, 1).toUpperCase())}</div>
-<div class=who><b title="${esc(u.name)}">${esc(u.name)}</b><span>${sub}</span></div>
-${st === 'ok' ? `<button type=button class="ghost ic" title="Copy calendar link" aria-label="Copy calendar link" data-url="${esc(`${publicBase(req)}/u/${catalogKey(u.id)}/calendar.ics`)}" onclick="cp(this)">${ICONS.calendar}</button>` : ''}
-${st === 'ok' ? `<a class="btn ghost ic" title="Lists" aria-label="Lists" href="${u.owner ? '?lists=1&owner=1' : `?lists=1&viewer=${encodeURIComponent(u.id)}`}">${ICONS.lists}</a>` : ''}
+<div class=who><b title="${esc(u.name)}">${esc(u.name)}</b><span>${sub}</span>${st === 'ok' ? `<span>${activityLine(activity[u.id])}</span>` : ''}</div>
+${st === 'ok' ? `<button type=button class="ghost ic" title="Copy calendar link" aria-label="Copy calendar link" data-url="${esc(`${publicBase(req)}/u/${catalogKey(u.id)}/calendar.ics`)}" data-msg="Calendar link copied" onclick="cp(this)">${ICONS.calendar}<span class=lb>iCal</span></button>` : ''}
+${st === 'ok' ? `<a class="btn ghost ic" title="Lists" aria-label="Lists" href="${u.owner ? '?lists=1&owner=1' : `?lists=1&viewer=${encodeURIComponent(u.id)}`}">${ICONS.lists}<span class=lb>Lists</span></a>` : ''}
 ${st === 'ok'
-  ? `<form method=post style="margin:0" onsubmit="return confirm('Disconnect ${esc(u.name).replace(/'/g,"")} from Trakt?')"><input type=hidden name=disconnect value="${esc(u.id)}"><button class="ghost ic" title="Disconnect" aria-label="Disconnect">${ICONS.unlink}</button></form>`
+  ? `<form method=post style="margin:0" onsubmit="return confirm('Disconnect ${esc(u.name).replace(/'/g,"")} from Trakt?')"><input type=hidden name=disconnect value="${esc(u.id)}"><button class="ghost warn ic" title="Disconnect" aria-label="Disconnect">${ICONS.unlink}<span class=lb>Disconnect</span></button></form>`
   : `<a class=btn href="${href}">${st === 'reauth' ? 'Reconnect' : 'Connect'}</a>`}</div>`;
   }).join('');
-  return page(`<h1>AIOStreams users</h1><p class=sub>Connect each AIOStreams user to their Trakt account.</p><div class=card>${rows}</div><footer style="display:grid;gap:10px"><button type=button data-url="${esc(publicBase(req))}/manifest.json" onclick="cp(this)" style="width:100%">Copy manifest</button><a class="btn ghost" href="/" style="display:block;text-align:center">Back</a></footer><script>function cp(b){var e=document.createElement('textarea'),ok=false,l=b.dataset.l||(b.dataset.l=b.textContent);e.value=b.dataset.url;document.body.appendChild(e);e.select();try{ok=document.execCommand('copy')}catch(x){}
-document.body.removeChild(e);if(!ok&&navigator.clipboard){navigator.clipboard.writeText(b.dataset.url);ok=true}if(b.classList.contains('ic'))return toast(ok?'Calendar link copied':'Copy failed',!ok);b.textContent=ok?'Copied':'Copy failed';setTimeout(function(){b.textContent=l},2000)}</script>`);
+  return page(`<h1>AIOStreams users</h1><p class=sub>Connect each AIOStreams user to their Trakt account.</p><div class=card>${rows}</div><footer style="display:grid;gap:10px"><button type=button data-url="${esc(publicBase(req))}/manifest.json" data-msg="Manifest copied" onclick="cp(this)" style="width:100%">Copy manifest</button><a class="btn ghost" href="/" style="display:block;text-align:center">Back</a></footer><dialog id=hd><h2 id=ht></h2><p id=hs class=sub style="margin:-6px 0 12px"></p><ul id=hl></ul><button type=button class=ghost onclick="hd.close()" style="width:100%">Close</button></dialog><script>function hist(b){var w=b.closest('.who');ht.textContent=w.querySelector('b').textContent;hl.innerHTML=w.querySelector('.hist').innerHTML;hs.textContent='Showing the last ${HISTORY_MAX} actions';hd.showModal()}
+hd.addEventListener('click',function(e){if(e.target===hd)hd.close()});
+function cp(b){var e=document.createElement('textarea'),ok=false,l=b.dataset.l||(b.dataset.l=b.textContent);e.value=b.dataset.url;document.body.appendChild(e);e.select();try{ok=document.execCommand('copy')}catch(x){}
+document.body.removeChild(e);if(!ok&&navigator.clipboard){navigator.clipboard.writeText(b.dataset.url);ok=true}toast(ok?(b.dataset.msg||'Copied'):'Copy failed',!ok)}</script>`);
 }
 
 const publicBase = (req) => (process.env.PUBLIC_URL || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`).replace(/\/$/, '');
@@ -391,24 +455,47 @@ async function listsPage(req, viewer, user) {
   try { avail = await viewerContext.run({ viewer }, () => availableLists(viewer, true)); }
   catch (e) { return msg('err', 'Could not load lists', esc(e.message).slice(0, 300)); }
   const picks = getPicks(viewer);
+  const chosen = picks ? picks.map((id) => avail.find((l) => l.id === id)).filter(Boolean) : avail.filter((l) => l.defaultOn);
+  const chosenIds = new Set(chosen.map((l) => l.id));
+  const row = (l) => `<div class=lr data-i="${avail.indexOf(l)}" data-g="${esc(l.group)}"><label style="flex:1;display:flex;align-items:center;min-width:0"><input type=checkbox name=pick value="${esc(l.id)}" onchange="tg(this)" style="width:auto;margin:0 12px 0 0"${chosenIds.has(l.id) ? ' checked' : ''}>${esc(l.name)}</label><span class=mvs><button type=button class="mvb up" onclick="mv(this,-1)" title="Move up" aria-label="Move up"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button><button type=button class="mvb dn" onclick="mv(this,1)" title="Move down" aria-label="Move down"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></span></div>`;
+  const head = (t) => `<b style="display:block;margin:14px 0 4px;color:var(--mute);font-size:13px">${esc(t)}</b>`;
   const groups = [...new Set(avail.map((l) => l.group))];
-  const boxes = groups.map((g) => `<b style="display:block;margin:14px 0 4px;color:var(--mute);font-size:13px">${esc(g)}</b>`
-    + avail.filter((l) => l.group === g).map((l) => `<label style="display:flex;align-items:center;padding:5px 0"><input type=checkbox name=pick value="${esc(l.id)}" style="width:auto;margin:0 12px 0 0"${(picks ? picks.includes(l.id) : l.defaultOn) ? ' checked' : ''}>${esc(l.name)}</label>`).join('')).join('');
-  const addr = `${publicBase(req)}/u/${key}/manifest.json`;
-  const script = `enable presets[options.name="Traktor"]\nset presets[options.name="Traktor"].options.manifestUrl = "${addr}"`;
+  const boxes = `<div class=g>${head('Shown, in this order')}<div id=shown>${chosen.map(row).join('')}</div></div>`
+    + groups.map((g) => `<div class=g>${head(g)}<div class=gl data-g="${esc(g)}">${avail.filter((l) => l.group === g && !chosenIds.has(l.id)).map(row).join('')}</div></div>`).join('');
+  const moveJs = `<style>.g:not(:has(.lr)){display:none}button:disabled{opacity:.45;cursor:default}.lr{display:flex;align-items:center;padding:8px 12px;margin:6px 0;background:var(--card2);border-radius:10px}.mvs{display:none;gap:4px;margin-left:8px}#shown .mvs{display:inline-flex}
+.mvb{width:30px;height:30px;padding:0;display:inline-grid;place-items:center;border-radius:8px;background:var(--red);border:0;color:#fff}
+.mvb:hover{background:var(--red2)}.mvb svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+#shown .lr:first-child .up,#shown .lr:last-child .dn{opacity:.3;pointer-events:none}</style>
+<script>function mv(b,d){var r=b.closest('.lr'),s=d<0?r.previousElementSibling:r.nextElementSibling;if(s&&s.classList.contains('lr'))r.parentNode.insertBefore(d<0?r:s,d<0?s:r);chk()}
+function tg(c){var r=c.closest('.lr');
+if(c.checked){document.getElementById('shown').appendChild(r);chk();return}
+var gl=[].filter.call(document.querySelectorAll('.gl'),function(x){return x.dataset.g===r.dataset.g})[0];if(!gl)return;
+var after=[].filter.call(gl.children,function(x){return +x.dataset.i>+r.dataset.i})[0];gl.insertBefore(r,after||null);chk()}</script>`;
+  const rev = getRev(viewer);
+  const addr = `${publicBase(req)}/u/${key}/manifest.json${rev ? `?r=${rev}` : ''}`;
+  await aioUsers().catch(() => {});
+  // Keeps the catalogs in the order Traktor sends them (AIOStreams otherwise keeps its own saved positions).
+  const orderLine = usersCache.traktorId ? `\nadd upstreamCatalogOrder "${usersCache.traktorId}"` : '';
+  const script = `enable presets[options.name="Traktor"]\nset presets[options.name="Traktor"].options.manifestUrl = "${addr}"${orderLine}`;
   // The clipboard API needs HTTPS, so copy through a temporary textarea with the older copy command, which works on plain http.
   const copyJs = `<script>function cp(b){var e=document.createElement('textarea'),ok=false;e.value=b.dataset.url;document.body.appendChild(e);e.select();try{ok=document.execCommand('copy')}catch(x){}
-document.body.removeChild(e);if(!ok&&navigator.clipboard){navigator.clipboard.writeText(b.dataset.url);ok=true}b.textContent=ok?'Copied':'Copy failed'}</script>`;
-  const saveJs = `<script>function saveLists(f){var b=f.querySelector('button');b.disabled=true;
+document.body.removeChild(e);if(!ok&&navigator.clipboard){navigator.clipboard.writeText(b.dataset.url);ok=true}toast(ok?'Script copied':'Copy failed',!ok)}</script>`;
+  const saveJs = `<script>function state(){return [].map.call(document.querySelectorAll('input[name=pick]:checked'),function(x){return x.value}).join(',')}
+var base=state();
+function chk(){document.getElementById('sv').disabled=state()===base}
+function saveLists(f){var b=document.getElementById('sv');b.disabled=true;
 fetch('',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(new FormData(f))})
-.then(function(r){return r.text().then(function(t){toast(r.ok&&t.indexOf('msg good')>-1?'Lists saved':'Could not save lists',!(r.ok&&t.indexOf('msg good')>-1))})})
-.catch(function(){toast('Could not save lists',true)}).then(function(){b.disabled=false});return false}</script>`;
-  return page(`<h1>Lists for ${esc(user.name)}</h1><p class=sub>Choose which of this user's Trakt lists to show as catalogs.</p>
-<form method=post class=card onsubmit="return saveLists(this)"><div style="padding:14px"><input type=hidden name=listsfor value="${esc(viewer)}"><div>${boxes}</div><div style="margin-top:12px"><button style="width:100%">Save lists</button></div></div></form>
+.then(function(r){return r.text().then(function(t){var ok=r.ok&&t.indexOf('msg good')>-1;
+if(!ok)return toast('Could not save lists',true);
+base=state();toast('Lists saved. Copy the script again and update the variant.');
+return fetch(location.href).then(function(g){return g.text()}).then(function(h){var n=new DOMParser().parseFromString(h,'text/html').getElementById('cs'),c=document.getElementById('cs');if(n&&c)c.dataset.url=n.dataset.url})})})
+.catch(function(){toast('Could not save lists',true)}).then(chk);return false}</script>`;
+  return page(`<h1>Lists for ${esc(user.name)}</h1><p class=sub>Choose which of this user's Trakt lists to show as catalogs, and use the arrows to put them in order. After saving, copy the script below again and paste it over this user's variant in AIOStreams, see <a href="/help">Help</a>.</p>
+<form method=post class=card autocomplete=off onsubmit="return saveLists(this)"><div style="padding:14px"><input type=hidden name=listsfor value="${esc(viewer)}"><div>${boxes}</div><div style="margin-top:12px"><button id=sv disabled style="width:100%">Save lists</button></div></div></form>
 <div class=card style="margin-top:16px"><div style="padding:14px"><b>Variant for AIOStreams</b>
 <p class=sub style="margin-top:10px">In AIOStreams create a variant named <code>${esc(user.name.toLowerCase())}</code>, paste this as its script, and pick it for this user under Users. It points the <code>Traktor</code> addon at this user's own address, for their watch state and their lists. Anyone with the address can see the chosen lists.</p>
-<button type=button data-url="${esc(script)}" onclick="cp(this)" style="width:100%;margin-top:6px">Copy script</button></div></div>
-<footer><a class="btn ghost" href="?" style="display:block;text-align:center">Back</a></footer>${copyJs}${saveJs}`);
+<button type=button id=cs data-url="${esc(script)}" onclick="cp(this)" style="width:100%;margin-top:6px">Copy script</button></div></div>
+<footer><a class="btn ghost" href="?" style="display:block;text-align:center">Back</a></footer>${copyJs}${saveJs}${moveJs}`);
 }
 
 async function authPage(url, req) {
@@ -489,7 +576,7 @@ const server = http.createServer(async (req, res) => {
     const viewer = cleanViewer(url.searchParams.get('viewer'));
 
     if (p === '/auth') {
-      const html = (code, body) => { res.writeHead(code, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(body); };
+      const html = (code, body) => { res.writeHead(code, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(body); };
       if (!adminOk(req)) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Traktor"', 'Content-Type': 'text/plain' }); return res.end('Password required'); }
       if (req.method === 'POST' && req.headers.origin && new URL(req.headers.origin).host !== req.headers.host) return html(403, msg('err', 'Blocked', 'Cross-site request refused.'));
       if (!CLIENT_ID) return html(500, msg('err', 'Not configured', 'TRAKT_CLIENT_ID is not set.'));

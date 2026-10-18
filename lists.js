@@ -61,7 +61,9 @@ export async function availableLists(viewer, fresh = false) {
 async function selected(viewer) {
   const all = await availableLists(viewer);
   const picks = getPicks(viewer);
-  return picks ? all.filter((l) => picks.includes(l.id)) : all.filter((l) => l.defaultOn);
+  if (!picks) return all.filter((l) => l.defaultOn);
+  const byId = new Map(all.map((l) => [l.id, l]));
+  return picks.map((id) => byId.get(id)).filter(Boolean);       // the order the user saved
 }
 
 // Titles of one list for one type, as catalog entries. skip/PAGE slice the result.

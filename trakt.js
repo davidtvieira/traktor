@@ -60,9 +60,13 @@ export function viewerByKey(key) {
 }
 // The lists a user ticked (null = all of them).
 export const getPicks = (viewer) => loadTokens(viewer)?.picks ?? null;
+// Each save that changes the picks or their order bumps rev, which goes on the end of the user's address so AIOStreams reloads the manifest.
+export const getRev = (viewer) => loadTokens(viewer)?.rev ?? 0;
 export function setPicks(viewer, picks) {
   const t = loadTokens(viewer);
-  if (t) saveTokens({ ...t, picks }, viewer);
+  if (!t) return;
+  const same = Array.isArray(t.picks) && t.picks.length === picks.length && t.picks.every((x, i) => x === picks[i]);
+  saveTokens({ ...t, picks, rev: (t.rev || 0) + (same ? 0 : 1) }, viewer);
 }
 export const knownViewers = () => Object.keys(readAll());
 // viewer -> 'ok' | 'reauth' (Trakt rejected the saved login; the user must connect again)
@@ -90,6 +94,7 @@ function storeTokenResponse(j, viewer = currentViewer()) {
   const prev = loadTokens(viewer);
   if (prev?.key) t.key = prev.key;                     // keep the lists address key and picks across refreshes
   if (prev?.picks) t.picks = prev.picks;
+  if (prev?.rev) t.rev = prev.rev;
   saveTokens(t, viewer);
   return t;
 }
