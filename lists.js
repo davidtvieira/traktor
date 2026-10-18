@@ -16,9 +16,9 @@ async function cached(key, fn) {
   return data;
 }
 
-const poster = (imdb) => `https://images.metahub.space/poster/small/${imdb}/img`;
+const art = (kind, size, imdb) => `https://images.metahub.space/${kind}/${size}/${imdb}/img`;
 const toMeta = (o, type) => (o?.ids?.imdb
-  ? { id: o.ids.imdb, type, name: o.title, releaseInfo: o.year ? String(o.year) : undefined, poster: poster(o.ids.imdb) }
+  ? { id: o.ids.imdb, type, name: o.title, releaseInfo: o.year ? String(o.year) : undefined, poster: art("poster", "large", o.ids.imdb), background: art("background", "medium", o.ids.imdb), logo: art("logo", "medium", o.ids.imdb) }
   : null);
 
 const BOTH = ['movie', 'series'];
