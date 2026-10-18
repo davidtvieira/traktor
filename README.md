@@ -1,4 +1,4 @@
-<p align="center"><img src="logo.svg" width="96" alt=""></p>
+<p align="center"><img src="public/logo.svg" width="96" alt=""></p>
 
 # Traktor
 
@@ -52,6 +52,29 @@ Each connected user has a private calendar feed of the episodes and movies comin
    - **Android:** [ICSx⁵](https://f-droid.org/packages/at.bitfire.icsdroid/): add a subscription with the address, then tick the new calendar in your calendar app.
    - **Google Calendar (web):** *Other calendars → From URL*.
    - **iPhone / Mac:** *Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar*.
+
+## Project layout
+
+```
+src/
+  index.js            boot: wires logging, starts the server
+  config.js           every environment variable, parsed once
+  context.js          which AIOStreams user the current request is for
+  http/               server, route table, request/response helpers, static files
+    routes/           addon (shared manifest), user (private address), watch_state
+  admin/              the /auth pages: login flow, form actions, views
+  features/
+    watch-state/      push (Trakt writes), pull (Trakt reads), manifest
+    lists/            Trakt lists and charts as catalogs
+    calendar/         upcoming episodes and movies as an iCalendar feed
+    activity/         last sync and the recent-actions history
+  trakt/              API client, OAuth, typed errors
+  storage/            atomic JSON files: Trakt logins, per-user settings
+  aiostreams/         user lookup from the AIOStreams API
+  util/               ids, time, logging, small helpers
+public/               logo, admin stylesheet and browser scripts
+test/                 mirrors src/ (run with npm test)
+```
 
 ---
 

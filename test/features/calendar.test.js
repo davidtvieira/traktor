@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { toEvents, toIcs } from '../calendar.js';
+import { toEvents } from '../../src/features/calendar/events.js';
+import { toIcs } from '../../src/features/calendar/ics.js';
 
 const shows = [{
   first_aired: '2026-10-18T14:30:00.000Z',
