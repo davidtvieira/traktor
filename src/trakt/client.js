@@ -15,14 +15,21 @@ async function accessToken() {
   return t.access_token;
 }
 
+async function answer(res, method, pathname) {
+  if (res.status === 204) return null;
+  if (!res.ok) throw new TraktError(res.status, `Trakt ${method} ${pathname} -> ${res.status}`, res.headers.get('retry-after'));
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
 export async function api(method, pathname, body) {
   for (let attempt = 0; attempt < 2; attempt++) {
     const res = await request(method, pathname, { token: await accessToken(), body });
     if (res.status === 401 && attempt === 0) { await refresh(); continue; }
     if (res.status === 401 || res.status === 403) throw new AuthError(`Trakt ${res.status}`);
-    if (res.status === 204) return null;
-    if (!res.ok) throw new TraktError(res.status, `Trakt ${method} ${pathname} -> ${res.status}`, res.headers.get('retry-after'));
-    const text = await res.text();
-    return text ? JSON.parse(text) : null;
+    return answer(res, method, pathname);
   }
 }
+
+// For Trakt's public endpoints (the charts): only the app's client ID is sent, no user's login is involved.
+export const apiPublic = async (pathname) => answer(await request('GET', pathname), 'GET', pathname);

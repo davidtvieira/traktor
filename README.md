@@ -7,6 +7,7 @@ Syncs AIOStreams with Trakt, one Trakt account per AIOStreams user.
 - Plays from the AIOStreams app go to Trakt.
 - Your Trakt progress, history, watchlist, ratings and dropped shows fill Continue Watching and Next Up.
 - Your Trakt lists (recommendations, favorites, collection, your own, smart and liked lists, and Trakt's charts) can show as catalogs.
+- An **Everyone** entry on the users page picks Trakt charts (Trending by default) that show for every user, each user can hide them on their own lists page, and users with no Trakt account get them from their own address.
 - Each user's upcoming episodes and movies are a calendar feed (iCalendar) you can subscribe to from a phone. See [Calendar](#calendar).
 - The users page shows each user's last sync, and an **i** button opens their last 10 actions (watched, unwatched, watchlist changes, ratings and so on), each with the title and when it happened.
 

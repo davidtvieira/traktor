@@ -29,6 +29,7 @@ test('the manifest advertises watch state', async () => {
   const m = await (await fetch(`${base}/manifest.json`)).json();
   assert.equal(m.id, 'com.local.trakt-watchstate');
   assert.equal(m.watchState.version, 2);
+  assert.ok(m.catalogs.some((c) => c.id === 'trending'), 'the charts for everyone are in the base manifest');
 });
 
 test('unknown paths and unknown private addresses are 404, an unconnected viewer is refused', async () => {
@@ -36,4 +37,27 @@ test('unknown paths and unknown private addresses are 404, an unconnected viewer
   assert.equal((await fetch(`${base}/u/${'a'.repeat(32)}/manifest.json`)).status, 404);
   const pull = await fetch(`${base}/watch_state/pull.json?viewer=ghost`);
   assert.equal(pull.status, 404);
+});
+
+test('users with no Trakt account get the charts shown to everyone, and only those', async () => {
+  const { sharedKey, setSharedPicks, sharedRev } = await import('../../src/storage/shared-store.js');
+  const key = sharedKey();
+  const ids = async () => [...new Set((await (await fetch(`${base}/u/${key}/manifest.json`)).json()).catalogs.map((c) => c.id))];
+  assert.deepEqual(await ids(), ['trending']);
+  setSharedPicks(['popular', 'trending']);
+  assert.deepEqual(await ids(), ['popular', 'trending']);
+  assert.equal(sharedRev(), 1);
+  assert.equal((await fetch(`${base}/u/${key}/watch_state/pull.json`)).status, 404);
+});
+
+test('a user can turn off a chart shown to everyone, and the address revision moves', async () => {
+  const { saveTokens } = await import('../../src/storage/token-store.js');
+  const { setPicks, getOptOut, getRev } = await import('../../src/storage/user-store.js');
+  saveTokens({ access_token: 'x', expires_at: Date.now() + 1e9 }, 'kid');
+  const before = getRev('kid');
+  setPicks('kid', [], ['trending']);
+  assert.deepEqual(getOptOut('kid'), ['trending']);
+  assert.equal(getRev('kid'), before + 1);
+  setPicks('kid', [], ['trending']);
+  assert.equal(getRev('kid'), before + 1);
 });

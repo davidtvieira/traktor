@@ -2,17 +2,18 @@
 import { aioUsers, traktorInstanceId } from '../aiostreams/users.js';
 import { config } from '../config.js';
 import { runAs } from '../context.js';
-import { availableLists, chosenLists } from '../features/lists/index.js';
+import { DISCOVER, availableLists, chosenLists, sharedLists } from '../features/lists/index.js';
 import { getActivity } from '../features/activity/store.js';
 import { publicBase } from '../http/request.js';
-import { catalogKey, getPicks, getRev } from '../storage/user-store.js';
+import { sharedKey, sharedRev } from '../storage/shared-store.js';
+import { catalogKey, getOptOut, getPicks, getRev } from '../storage/user-store.js';
 import { viewerStates } from '../storage/token-store.js';
 import { cleanViewer } from '../util/ids.js';
 import { esc } from '../util/html.js';
 import { beginLogin, isOob } from './login.js';
 import { connectPage } from './views/connect.js';
 import { msg } from './views/layout.js';
-import { listsPage } from './views/lists.js';
+import { listsPage, sharedListsPage } from './views/lists.js';
 import { usersPage } from './views/users.js';
 
 async function usersIndex(req) {
@@ -27,13 +28,16 @@ async function usersIndex(req) {
   return usersPage(rows, `${publicBase(req)}/manifest.json`);
 }
 
-// The AIOStreams script that points the Traktor addon at this user's own address and keeps the catalogs in Traktor's order.
-async function variantScript(req, viewer, key) {
-  const rev = getRev(viewer);
+// The AIOStreams script that points the Traktor addon at an address and keeps the catalogs in Traktor's order.
+async function variantScript(req, key, rev) {
   const addr = `${publicBase(req)}/u/${key}/manifest.json${rev ? `?r=${rev}` : ''}`;
   await aioUsers().catch(() => {});
   const orderLine = traktorInstanceId() ? `\nadd upstreamCatalogOrder "${traktorInstanceId()}"` : '';
   return `enable presets[options.name="Traktor"]\nset presets[options.name="Traktor"].options.manifestUrl = "${addr}"${orderLine}`;
+}
+
+async function sharedIndex(req) {
+  return sharedListsPage({ avail: DISCOVER, chosen: sharedLists(), script: await variantScript(req, sharedKey(), sharedRev()) });
 }
 
 async function listsIndex(req, viewer, user) {
@@ -43,7 +47,7 @@ async function listsIndex(req, viewer, user) {
   try { avail = await runAs(viewer, () => availableLists(viewer, true)); }
   catch (e) { return msg('err', 'Could not load lists', esc(e.message).slice(0, 300)); }
   const chosen = chosenLists(avail, getPicks(viewer));
-  return listsPage({ user, viewer, avail, chosen, script: await variantScript(req, viewer, key) });
+  return listsPage({ user, viewer, avail, chosen, everyone: sharedLists(), off: new Set(getOptOut(viewer)), script: await variantScript(req, key, getRev(viewer)) });
 }
 
 function connectIndex(user, viewer) {
@@ -52,6 +56,7 @@ function connectIndex(user, viewer) {
 }
 
 export async function adminPage(url, req) {
+  if (url.searchParams.has('all')) return sharedIndex(req);
   if (!url.searchParams.has('viewer') && !url.searchParams.has('owner')) return usersIndex(req);
   const viewer = url.searchParams.has('owner') ? '' : cleanViewer(url.searchParams.get('viewer'));
   const user = (await aioUsers()).find((u) => u.id === viewer);

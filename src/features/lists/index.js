@@ -1,2 +1,2 @@
-export { listsManifest, catalogMetas } from './catalog.js';
-export { availableLists, chosenLists } from './sources.js';
+export { listsManifest, sharedManifest, catalogMetas, sharedCatalogMetas } from './catalog.js';
+export { DISCOVER, availableLists, chosenLists, sharedLists } from './sources.js';

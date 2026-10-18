@@ -11,6 +11,17 @@ import { watchStateRoute } from './watch-state.js';
 
 const CATALOG = /^catalog\/(movie|series)\/([\w-]+)(?:\/([^/]+))?\.json$/;
 
+// Answers a catalog request; `metasOf(type, id, skip)` gives the titles. False when `rest` is not a catalog request.
+export async function catalogRoute(req, res, rest, metasOf) {
+  const m = rest.match(CATALOG);
+  if (!m || req.method !== 'GET') return false;
+  const skip = Number(decodeURIComponent(m[3] || '').match(/skip=(\d+)/)?.[1] || 0);
+  const metas = await metasOf(m[1], m[2], skip);
+  log(`catalog ${m[1]} ${m[2]}${skip ? ` from ${skip}` : ''} -> ${metas.length} titles`);
+  sendJson(res, 200, { metas });
+  return true;
+}
+
 // Call inside the user's viewerContext.
 export async function userRoute({ req, res, url }, viewer, rest) {
   if (rest === 'manifest.json' && req.method === 'GET') {
@@ -32,12 +43,6 @@ export async function userRoute({ req, res, url }, viewer, rest) {
     if (cleanViewer(url.searchParams.get('viewer')) !== viewer) return sendJson(res, 404, { error: 'unknown viewer' });
     if (await watchStateRoute(req, res, url, `/${rest}`)) return;
   }
-  const m = rest.match(CATALOG);
-  if (m && req.method === 'GET') {
-    const skip = Number(decodeURIComponent(m[3] || '').match(/skip=(\d+)/)?.[1] || 0);
-    const metas = await catalogMetas(viewer, m[1], m[2], skip);
-    log(`catalog ${m[1]} ${m[2]}${skip ? ` from ${skip}` : ''} -> ${metas.length} titles`);
-    return sendJson(res, 200, { metas });
-  }
+  if (await catalogRoute(req, res, rest, (type, id, skip) => catalogMetas(viewer, type, id, skip))) return;
   return sendJson(res, 404, { error: 'not found' });
 }

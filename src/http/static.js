@@ -19,7 +19,7 @@ export const STATIC_PATH = /^\/(?:logo\.svg|(?:css|js)\/[\w.-]+)$/;
 export function serveStatic(res, pathname) {
   const f = files.get(pathname);
   if (!f) return false;
-  res.writeHead(200, { 'Content-Type': f.type, 'Cache-Control': 'public, max-age=300' });
+  res.writeHead(200, { 'Content-Type': f.type, 'Cache-Control': 'no-cache' });
   res.end(f.body);
   return true;
 }

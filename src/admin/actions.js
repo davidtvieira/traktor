@@ -1,16 +1,28 @@
 // The POST side of /auth: save lists, disconnect a user, or finish a Trakt login. Each returns the page to show.
 import { knownViewers, deleteTokens } from '../storage/token-store.js';
+import { setSharedPicks } from '../storage/shared-store.js';
 import { setPicks } from '../storage/user-store.js';
+import { sharedLists } from '../features/lists/index.js';
 import { cleanViewer } from '../util/ids.js';
 import { log } from '../util/log.js';
 import { finishLogin } from './login.js';
 import { msg } from './views/layout.js';
 
+const validId = (x) => /^[a-z0-9-]{1,40}$/.test(x);
+
+function saveSharedLists(f) {
+  const picks = f.getAll('pick').filter(validId);
+  setSharedPicks(picks);
+  log(`lists for everyone saved: ${picks.length} selected`);
+  return msg('good', 'Lists saved', 'AIOStreams may take a few minutes to show the change. Save the addon there again if it does not.');
+}
+
 function saveLists(f) {
   const viewer = cleanViewer(f.get('listsfor'));
   if (!knownViewers().includes(viewer)) return msg('err', 'Not connected', 'Connect this user to Trakt first.');
-  const picks = f.getAll('pick').filter((x) => /^[a-z0-9-]{1,40}$/.test(x));
-  setPicks(viewer, picks);
+  const picks = f.getAll('pick').filter(validId);
+  const on = new Set(f.getAll('shared'));
+  setPicks(viewer, picks, sharedLists().map((l) => l.id).filter((id) => !on.has(id)));
   log(`lists saved: ${picks.length} selected`, viewer);
   return msg('good', 'Lists saved', 'AIOStreams may take a few minutes to show the change. Save the addon there again if it does not.');
 }
@@ -32,6 +44,7 @@ async function connect(f) {
 
 export async function adminSubmit(raw) {
   const f = new URLSearchParams(raw);
+  if (f.has('sharedlists')) return saveSharedLists(f);
   if (f.has('listsfor')) return saveLists(f);
   if (f.has('disconnect')) return disconnect(f);
   return connect(f);

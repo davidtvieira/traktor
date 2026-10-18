@@ -4,11 +4,13 @@ import { about } from '../admin/views/about.js';
 import { help } from '../admin/views/help.js';
 import { config } from '../config.js';
 import { runAs } from '../context.js';
+import { isSharedKey } from '../storage/shared-store.js';
 import { viewerByKey } from '../storage/user-store.js';
 import { cleanViewer } from '../util/ids.js';
 import { safeEq } from './request.js';
 import { sendHtml, sendJson } from './respond.js';
 import { addonRoute } from './routes/addon.js';
+import { sharedRoute } from './routes/shared.js';
 import { userRoute } from './routes/user.js';
 import { STATIC_PATH, serveStatic } from './static.js';
 
@@ -20,8 +22,9 @@ const PUBLIC = [
   ['GET', STATIC_PATH, (ctx) => serveStatic(ctx.res, ctx.url.pathname) || notFound(ctx.res)],
   ['GET', '/help', (ctx) => sendHtml(ctx.res, 200, help())],
   ['GET', '/', (ctx) => sendHtml(ctx.res, 200, about())],
-  // A user's private address: the random key in the path is the credential.
+  // A user's private address (or the one for users with no Trakt account): the random key in the path is the credential.
   ['*', /^\/u\/([a-f0-9]{32})\/(.+)$/, (ctx, key, rest) => {
+    if (isSharedKey(key)) return sharedRoute(ctx, rest);
     const viewer = viewerByKey(key);
     if (viewer === null) return notFound(ctx.res);
     return runAs(viewer, () => userRoute(ctx, viewer, rest));

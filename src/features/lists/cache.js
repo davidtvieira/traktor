@@ -1,4 +1,5 @@
 // Short-lived answers from Trakt, kept per user (the key always starts with the viewer) and never shared between users.
+// Only the public charts are shared: their key starts with 'public', and they are the same for everyone.
 const TTL = 5 * 60 * 1000;
 const MAX = 300;
 const cache = new Map();          // key -> { at, data }
