@@ -25,3 +25,24 @@ test('cache answers repeat calls without calling again', async () => {
   assert.equal(await cached('u:k', f), 1);
   assert.equal(await cached('u:k', f), 1);
 });
+
+test('sorting by title, rating, release and added date, with missing values last', async () => {
+  const { sortItems, sortKey, needsFull } = await import('../../src/features/lists/sort.js');
+  const items = [
+    { listed_at: '2024-02-01', movie: { title: 'b', rating: 7, year: 2001 } },
+    { listed_at: '2024-03-01', movie: { title: 'A', rating: 9, released: '1999-05-01', year: 1999 } },
+    { movie: { title: 'c', year: 2010 } },
+  ];
+  const names = (key) => sortItems(items, key, 'movie').map((i) => i.movie.title);
+  assert.deepEqual(names('title:asc'), ['A', 'b', 'c']);
+  assert.deepEqual(names('title:desc'), ['c', 'b', 'A']);
+  assert.deepEqual(names('rating:desc'), ['A', 'b', 'c']);
+  assert.deepEqual(names('rating:asc'), ['b', 'A', 'c']);
+  assert.deepEqual(names('year:asc'), ['A', 'b', 'c']);
+  assert.deepEqual(names('added:desc'), ['A', 'b', 'c']);
+  assert.deepEqual(names('added:asc'), ['b', 'A', 'c']);
+  assert.equal(sortItems(items, 'trakt', 'movie'), items);
+  assert.equal(sortKey('bogus'), null);
+  assert.equal(needsFull('title:asc'), false);
+  assert.equal(needsFull('rating:desc'), true);
+});

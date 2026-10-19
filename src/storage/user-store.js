@@ -19,12 +19,14 @@ export const getPicks = (viewer) => loadTokens(viewer)?.picks ?? null;
 // Each save that changes the picks or their order bumps rev, which goes on the end of the user's address so AIOStreams reloads the manifest.
 // A change to the lists shown to everyone counts for every user.
 export const getRev = (viewer) => (loadTokens(viewer)?.rev ?? 0) + sharedRev();
+// How the user sorts each ticked list, by list id (a list not in here keeps Trakt's order).
+export const getSorts = (viewer) => loadTokens(viewer)?.sorts ?? {};
 // The charts shown to everyone that this user turned off.
 export const getOptOut = (viewer) => loadTokens(viewer)?.optout ?? [];
 const sameList = (a, b) => Array.isArray(a) && a.length === b.length && a.every((x, i) => x === b[i]);
-export function setPicks(viewer, picks, optout = getOptOut(viewer)) {
+export function setPicks(viewer, picks, optout = getOptOut(viewer), sorts = getSorts(viewer)) {
   const t = loadTokens(viewer);
   if (!t) return;
   const same = sameList(t.picks, picks) && sameList(t.optout ?? [], optout);
-  patchUser(viewer, { picks, optout, rev: (t.rev || 0) + (same ? 0 : 1) });
+  patchUser(viewer, { picks, optout, sorts, rev: (t.rev || 0) + (same ? 0 : 1) });
 }

@@ -2,7 +2,7 @@
 import { knownViewers, deleteTokens } from '../storage/token-store.js';
 import { setSharedPicks } from '../storage/shared-store.js';
 import { setPicks } from '../storage/user-store.js';
-import { sharedLists } from '../features/lists/index.js';
+import { sharedLists, sortKey } from '../features/lists/index.js';
 import { cleanViewer } from '../util/ids.js';
 import { log } from '../util/log.js';
 import { finishLogin } from './login.js';
@@ -22,7 +22,9 @@ function saveLists(f) {
   if (!knownViewers().includes(viewer)) return msg('err', 'Not connected', 'Connect this user to Trakt first.');
   const picks = f.getAll('pick').filter(validId);
   const on = new Set(f.getAll('shared'));
-  setPicks(viewer, picks, sharedLists().map((l) => l.id).filter((id) => !on.has(id)));
+  const sorts = {};
+  for (const id of picks) { const k = sortKey(f.get(`sort_${id}`)); if (k) sorts[id] = k; }
+  setPicks(viewer, picks, sharedLists().map((l) => l.id).filter((id) => !on.has(id)), sorts);
   log(`lists saved: ${picks.length} selected`, viewer);
   return msg('good', 'Lists saved', 'AIOStreams may take a few minutes to show the change. Save the addon there again if it does not.');
 }

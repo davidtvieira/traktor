@@ -1,26 +1,30 @@
 // Trakt lists as Stremio catalogs: a connected user's own, plus the charts shown to everyone.
 import { api, apiPublic } from '../../trakt/client.js';
-import { getOptOut, getPicks } from '../../storage/user-store.js';
+import { getOptOut, getPicks, getSorts } from '../../storage/user-store.js';
 import { cached } from './cache.js';
 import { toMeta } from './meta.js';
 import { PAGE, availableLists, chosenLists, sharedLists } from './sources.js';
+import { needsFull, sortItems } from './sort.js';
 
 const BOTH = ['movie', 'series'];
 
 // The user's ticked lists, then the charts shown to everyone (minus the ones this user turned off or already ticked).
 async function selected(viewer) {
-  const own = chosenLists(await availableLists(viewer), getPicks(viewer));
+  const sorts = getSorts(viewer);
+  const own = chosenLists(await availableLists(viewer), getPicks(viewer)).map((l) => (sorts[l.id] ? { ...l, sort: sorts[l.id] } : l));
   const skip = new Set([...own.map((l) => l.id), ...getOptOut(viewer)]);
   return [...own, ...sharedLists().filter((l) => !skip.has(l.id))];
 }
 
-// Titles of one list for one type, as catalog entries. skip/PAGE slice the result.
+const withFull = (path) => `${path}${path.includes('?') ? '&' : '?'}extended=full`;
+
+// Titles of one list for one type, as catalog entries. skip/PAGE slice the result. A sorted list is read in full and sorted here.
 async function fetchMetas(viewer, entry, type, skip = 0) {
   const kind = type === 'movie' ? 'movie' : 'show';
   const page = entry.paged ? Math.floor(skip / PAGE) + 1 : 1;
-  const path = entry.path(kind, page);
+  const path = needsFull(entry.sort) ? withFull(entry.path(kind, page)) : entry.path(kind, page);
   const items = await (entry.public ? cached(`public:${path}`, () => apiPublic(path)) : cached(`${viewer}:${path}`, () => api('GET', path)));
-  const metas = (items || []).map((i) => toMeta(i[kind] ?? i, type)).filter(Boolean);
+  const metas = sortItems(items || [], entry.sort, kind).map((i) => toMeta(i[kind] ?? i, type)).filter(Boolean);
   return entry.paged ? metas.slice(skip - (page - 1) * PAGE) : metas.slice(skip, skip + PAGE);
 }
 

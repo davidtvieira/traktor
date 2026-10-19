@@ -48,3 +48,14 @@ test('picks bump rev only when they change, and a new login keeps key and picks'
   assert.deepEqual(users.getPicks('u'), ['2', '1']);
   assert.equal(tokens.patchUser('ghost', { access_token: 'x' }), null);
 });
+
+test('sorts are saved with the picks and do not bump rev', () => {
+  tokens.saveTokens({ access_token: 'a', refresh_token: 'r', expires_at: 1 }, 's');
+  assert.deepEqual(users.getSorts('s'), {});
+  users.setPicks('s', ['1'], [], {});
+  users.setPicks('s', ['1'], [], { 1: 'rating:desc' });
+  assert.deepEqual(users.getSorts('s'), { 1: 'rating:desc' });
+  assert.equal(users.getRev('s'), 1);
+  users.setPicks('s', ['1']);
+  assert.deepEqual(users.getSorts('s'), { 1: 'rating:desc' });
+});

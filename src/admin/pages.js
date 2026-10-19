@@ -6,7 +6,7 @@ import { DISCOVER, availableLists, chosenLists, sharedLists } from '../features/
 import { getActivity } from '../features/activity/store.js';
 import { publicBase } from '../http/request.js';
 import { sharedKey, sharedRev } from '../storage/shared-store.js';
-import { catalogKey, getOptOut, getPicks, getRev } from '../storage/user-store.js';
+import { catalogKey, getOptOut, getPicks, getRev, getSorts } from '../storage/user-store.js';
 import { viewerStates } from '../storage/token-store.js';
 import { esc } from '../util/html.js';
 import { setupProblems } from './health.js';
@@ -48,7 +48,7 @@ async function listsIndex(req, viewer, user) {
   try { avail = await runAs(viewer, () => availableLists(viewer, true)); }
   catch (e) { return msg('err', 'Could not load lists', esc(e.message).slice(0, 300)); }
   const chosen = chosenLists(avail, getPicks(viewer));
-  return listsPage({ user, viewer, avail, chosen, everyone: sharedLists(), off: new Set(getOptOut(viewer)), script: await variantScript(req, key, getRev(viewer)) });
+  return listsPage({ user, viewer, avail, chosen, everyone: sharedLists(), off: new Set(getOptOut(viewer)), sorts: getSorts(viewer), script: await variantScript(req, key, getRev(viewer)) });
 }
 
 function connectIndex(user, viewer) {
