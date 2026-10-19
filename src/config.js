@@ -20,7 +20,7 @@ export const config = {
   trakt: {
     clientId: env.TRAKT_CLIENT_ID,
     clientSecret: env.TRAKT_CLIENT_SECRET || '',
-    redirectUri: env.TRAKT_REDIRECT_URI || 'urn:ietf:wg:oauth:2.0:oob',
+    redirectUri: env.TRAKT_REDIRECT_URI || '',
   },
   aiostreams: {
     url: (env.AIOSTREAMS_URL || '').replace(/\/$/, ''),

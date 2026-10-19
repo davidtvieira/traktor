@@ -21,7 +21,7 @@ Syncs AIOStreams with Trakt, one Trakt account per AIOStreams user.
    cp .env.example .env     # then fill in TRAKT_CLIENT_ID and the AIOStreams values
    ```
 
-   `TRAKT_REDIRECT_URI` must match the Trakt app exactly. The three `AIOSTREAMS_` values are only used to fetch your users, so each can be linked to a Trakt account on `/config`. `ADMIN_PASSWORD` (asks for a password on `/config`) and `ADDON_SECRET` (adds `/<secret>/` to the manifest URL) are optional.
+   `TRAKT_CLIENT_ID`, `TRAKT_REDIRECT_URI` and the three `AIOSTREAMS_` values are required: Traktor stops at startup and names the missing ones in `docker logs traktor`. `TRAKT_REDIRECT_URI` must match the Trakt app exactly. The three `AIOSTREAMS_` values are only used to fetch your users, so each can be linked to a Trakt account on `/config`. `ADMIN_PASSWORD` (asks for a password on `/config`) and `ADDON_SECRET` (adds `/<secret>/` to the manifest URL) are optional.
 
 3. Start it:
 
