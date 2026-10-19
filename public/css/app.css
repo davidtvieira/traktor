@@ -22,7 +22,7 @@ h1,h2{margin:0 0 6px;font-size:26px;letter-spacing:-.3px}
 .user{display:flex;align-items:center;gap:14px;padding:14px;border-radius:10px}
 .user+.user{border-top:1px solid var(--line)}
 .user:hover{background:var(--card2)}
-.av{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--red),#7a0c10);display:grid;place-items:center;font-weight:700;flex:none}
+.av{width:42px;height:42px;border-radius:50%;background:var(--red);display:grid;place-items:center;font-weight:700;flex:none}
 .who{flex:1;min-width:0}.who b,.who span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .who span{color:var(--mute);font-size:13px}
 .info{all:unset;box-sizing:border-box;display:inline-grid;place-items:center;width:16px;height:16px;border:1px solid var(--mute);border-radius:50%;font:600 11px/1 system-ui,sans-serif;color:var(--mute);cursor:pointer;vertical-align:1px;margin-left:4px}
