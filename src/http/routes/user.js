@@ -6,6 +6,7 @@ import { aioUsers, userName } from '../../aiostreams/users.js';
 import { cleanViewer } from '../../util/ids.js';
 import { log } from '../../util/log.js';
 import { publicBase } from '../request.js';
+import { notFound } from '../not-found.js';
 import { sendJson } from '../respond.js';
 import { watchStateRoute } from './watch-state.js';
 
@@ -44,5 +45,5 @@ export async function userRoute({ req, res, url }, viewer, rest) {
     if (await watchStateRoute(req, res, url, `/${rest}`)) return;
   }
   if (await catalogRoute(req, res, rest, (type, id, skip) => catalogMetas(viewer, type, id, skip))) return;
-  return sendJson(res, 404, { error: 'not found' });
+  return notFound(req, res);
 }

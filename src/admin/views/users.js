@@ -14,7 +14,7 @@ function activityLine(a) {
   return `Last sync ${ago(a.seen)} ${info}</span><ul class=hist>${rows}</ul><span hidden>`;
 }
 
-const userHref = (u, extra = '') => (u.owner ? `?${extra}owner=1` : `?${extra}viewer=${encodeURIComponent(u.id)}`);
+const userHref = (u, page) => `/${u.owner ? 'owner' : encodeURIComponent(u.id)}/${page}`;
 
 function row({ user: u, state, activity, calendarUrl }) {
   const connected = state === 'ok';
@@ -22,16 +22,16 @@ function row({ user: u, state, activity, calendarUrl }) {
   return `<div class=user><div class=av>${esc((u.name || '?').slice(0, 1).toUpperCase())}</div>
 <div class=who><b title="${esc(u.name)}">${esc(u.name)}</b><span>${sub}</span>${connected ? `<span>${activityLine(activity)}</span>` : ''}</div>
 ${connected ? `<button type=button class="ghost ic" title="Copy calendar link" aria-label="Copy calendar link" data-url="${esc(calendarUrl)}" data-msg="Calendar link copied" onclick="cp(this)">${ICONS.calendar}<span class=lb>iCal</span></button>` : ''}
-${connected ? `<a class="btn ghost ic" title="Lists" aria-label="Lists" href="${userHref(u, 'lists=1&')}">${ICONS.lists}<span class=lb>Lists</span></a>` : ''}
+${connected ? `<a class="btn ghost ic" title="Lists" aria-label="Lists" href="${userHref(u, 'lists')}">${ICONS.lists}<span class=lb>Lists</span></a>` : ''}
 ${connected
   ? `<form method=post style="margin:0" onsubmit="return confirm('Disconnect ${esc(u.name).replace(/'/g, '')} from Trakt?')"><input type=hidden name=disconnect value="${esc(u.id)}"><button class="ghost warn ic" title="Disconnect" aria-label="Disconnect">${ICONS.unlink}<span class=lb>Disconnect</span></button></form>`
-  : `<a class=btn href="${userHref(u)}">${state === 'reauth' ? 'Reconnect' : 'Connect'}</a>`}</div>`;
+  : `<a class=btn href="${userHref(u, 'connect')}">${state === 'reauth' ? 'Reconnect' : 'Connect'}</a>`}</div>`;
 }
 
 // The first row: the lists every user sees, and the way for a user with no Trakt account to get them.
 const everyoneRow = `<div class=user><div class=av>*</div>
 <div class=who><b>Everyone</b><span>Charts shown to every user, no Trakt account needed</span></div>
-<a class="btn ghost ic" title="Lists for everyone" aria-label="Lists for everyone" href="?lists=1&all=1">${ICONS.lists}<span class=lb>Lists</span></a></div>`;
+<a class="btn ghost ic" title="Lists for everyone" aria-label="Lists for everyone" href="/all/lists">${ICONS.lists}<span class=lb>Lists</span></a></div>`;
 
 // rows: [{ user, state, activity, calendarUrl }]
 export const usersPage = (rows, manifestUrl) => page(`<h1>AIOStreams users</h1><p class=sub>Connect each AIOStreams user to their Trakt account.</p><div class=card>${everyoneRow}${rows.map(row).join('')}</div><footer style="display:grid;gap:10px"><button type=button data-url="${esc(manifestUrl)}" data-msg="Manifest copied" onclick="cp(this)" style="width:100%">Copy manifest</button><a class="btn ghost" href="/" style="display:block;text-align:center">Back</a></footer><dialog id=hd data-max="${HISTORY_MAX}"><h2 id=ht></h2><p id=hs class=sub style="margin:-6px 0 12px"></p><ul id=hl></ul><button type=button class=ghost onclick="hd.close()" style="width:100%">Close</button></dialog>`, ['history']);

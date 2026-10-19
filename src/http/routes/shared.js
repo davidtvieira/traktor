@@ -2,6 +2,7 @@
 import { sharedCatalogMetas, sharedManifest } from '../../features/lists/index.js';
 import { log } from '../../util/log.js';
 import { publicBase } from '../request.js';
+import { notFound } from '../not-found.js';
 import { sendJson } from '../respond.js';
 import { catalogRoute } from './user.js';
 
@@ -12,5 +13,5 @@ export async function sharedRoute({ req, res }, rest) {
     return sendJson(res, 200, { ...lists, name: 'Traktor' });
   }
   if (await catalogRoute(req, res, rest, sharedCatalogMetas)) return;
-  sendJson(res, 404, { error: 'not found' });
+  notFound(req, res);
 }

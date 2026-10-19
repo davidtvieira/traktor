@@ -26,7 +26,7 @@ export function listsPage({ user, viewer, avail, chosen, everyone, off, script }
 <div class=card style="margin-top:16px"><div style="padding:14px"><b>Variant for AIOStreams</b>
 <p class=sub style="margin-top:10px">In AIOStreams create a variant named <code>${esc(user.name.toLowerCase())}</code>, paste this as its script, and pick it for this user under Users. It points the <code>Traktor</code> addon at this user's own address, for their watch state and their lists. Anyone with the address can see the chosen lists.</p>
 <button type=button id=cs data-url="${esc(script)}" data-msg="Script copied" onclick="cp(this)" style="width:100%;margin-top:6px">Copy script</button></div></div>
-<footer><a class="btn ghost" href="?" style="display:block;text-align:center">Back</a></footer>`, ['lists-editor']);
+<footer><a class="btn ghost" href="/auth" style="display:block;text-align:center">Back</a></footer>`, ['lists-editor']);
 }
 
 // The lists shown to every user. They are Trakt's public charts, so no Trakt account is needed to see them.
@@ -36,5 +36,5 @@ export function sharedListsPage({ avail, chosen, script }) {
 <div class=card style="margin-top:16px"><div style="padding:14px"><b>Variant for a user with no Trakt account</b>
 <p class=sub style="margin-top:10px">A user who is not connected to Trakt already sees these charts through the base Traktor addon, so they need nothing more. Use this only if a user is on a variant that replaces the base addon. Create a variant for them, paste this as its script, and pick it for that user under Users. It has no watch sync and no personal lists, only the charts above.</p>
 <button type=button id=cs data-url="${esc(script)}" data-msg="Script copied" onclick="cp(this)" style="width:100%;margin-top:6px">Copy script</button></div></div>
-<footer><a class="btn ghost" href="?" style="display:block;text-align:center">Back</a></footer>`, ['lists-editor']);
+<footer><a class="btn ghost" href="/auth" style="display:block;text-align:center">Back</a></footer>`, ['lists-editor']);
 }

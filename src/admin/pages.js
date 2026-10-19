@@ -8,7 +8,6 @@ import { publicBase } from '../http/request.js';
 import { sharedKey, sharedRev } from '../storage/shared-store.js';
 import { catalogKey, getOptOut, getPicks, getRev } from '../storage/user-store.js';
 import { viewerStates } from '../storage/token-store.js';
-import { cleanViewer } from '../util/ids.js';
 import { esc } from '../util/html.js';
 import { beginLogin, isOob } from './login.js';
 import { connectPage } from './views/connect.js';
@@ -55,12 +54,12 @@ function connectIndex(user, viewer) {
   return connectPage({ user, link, state, redirectUri: config.trakt.redirectUri, oob: isOob });
 }
 
-export async function adminPage(url, req) {
-  if (url.searchParams.has('all')) return sharedIndex(req);
-  if (!url.searchParams.has('viewer') && !url.searchParams.has('owner')) return usersIndex(req);
-  const viewer = url.searchParams.has('owner') ? '' : cleanViewer(url.searchParams.get('viewer'));
+// admin: { page: 'users' | 'shared' | 'connect' | 'lists', viewer } as chosen by the route.
+export async function adminPage({ page, viewer }, req) {
+  if (page === 'shared') return sharedIndex(req);
+  if (page === 'users') return usersIndex(req);
   const user = (await aioUsers()).find((u) => u.id === viewer);
   if (!user) return msg('err', 'Unknown user', 'That user does not exist in AIOStreams.');
-  if (url.searchParams.has('lists')) return listsIndex(req, viewer, user);
+  if (page === 'lists') return listsIndex(req, viewer, user);
   return connectIndex(user, viewer);
 }

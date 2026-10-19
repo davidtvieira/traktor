@@ -1,6 +1,7 @@
 // The shared addon address (behind ADDON_SECRET when set): the manifest AIOStreams installs, the charts shown to everyone, and watch state for the viewer named in ?viewer=.
 import { sharedCatalogMetas, sharedManifest } from '../../features/lists/index.js';
 import { watchStateManifest } from '../../features/watch-state/manifest.js';
+import { notFound } from '../not-found.js';
 import { sendJson } from '../respond.js';
 import { catalogRoute } from './user.js';
 import { watchStateRoute } from './watch-state.js';
@@ -15,5 +16,5 @@ export async function addonRoute({ req, res, url }, p) {
   }
   if (await catalogRoute(req, res, p.slice(1), sharedCatalogMetas)) return;
   if (await watchStateRoute(req, res, url, p)) return;
-  sendJson(res, 404, { error: 'not found' });
+  notFound(req, res);
 }
