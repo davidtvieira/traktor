@@ -5,19 +5,46 @@ import { sendHtml } from '../http/respond.js';
 import { esc } from '../util/html.js';
 import { log } from '../util/log.js';
 import { adminSubmit } from './actions.js';
+import { BACKUP_MAX, makeBackup, restoreBackup } from './backup.js';
 import { adminPage } from './pages.js';
 import { msg } from './views/layout.js';
 
 const html = (res, code, body) => sendHtml(res, code, body, { 'Cache-Control': 'no-store' });
 
-// True when handled.
-export async function adminRoute({ req, res, admin }) {
+// True (after answering) when the request may not go on: no password, or a form posted from another site.
+function denied(req, res) {
   if (!adminAuthorized(req)) {
     res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Traktor"', 'Content-Type': 'text/plain' });
     res.end('Password required');
     return true;
   }
   if (req.method === 'POST' && isCrossOrigin(req)) { html(res, 403, msg('err', 'Blocked', 'Cross-site request refused.')); return true; }
+  return false;
+}
+
+const plain = (res, code, headers, body) => { res.writeHead(code, { 'Cache-Control': 'no-store', ...headers }); res.end(body); };
+
+export function adminBackup({ req, res }) {
+  if (denied(req, res)) return;
+  const name = `traktor-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  plain(res, 200, { 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="${name}"` }, JSON.stringify(makeBackup(), null, 2));
+  log('backup downloaded');
+}
+
+export async function adminRestore({ req, res }) {
+  if (denied(req, res)) return;
+  try {
+    const users = restoreBackup(await readBody(req, BACKUP_MAX));
+    log(`backup restored: ${users} users`);
+    plain(res, 200, { 'Content-Type': 'application/json' }, JSON.stringify({ ok: true, users }));
+  } catch (e) {
+    plain(res, e.tooLarge ? 413 : 400, { 'Content-Type': 'application/json' }, JSON.stringify({ error: e.message }));
+  }
+}
+
+// True when handled.
+export async function adminRoute({ req, res, admin }) {
+  if (denied(req, res)) return true;
   if (!config.trakt.clientId) { html(res, 500, msg('err', 'Not configured', 'TRAKT_CLIENT_ID is not set.')); return true; }
   try {
     if (req.method === 'GET') { html(res, 200, await adminPage(admin, req)); return true; }

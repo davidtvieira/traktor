@@ -1,5 +1,5 @@
 // The route table. Public routes first; everything else sits behind ADDON_SECRET (when set) and runs as the ?viewer= user.
-import { adminRoute } from '../admin/routes.js';
+import { adminBackup, adminRestore, adminRoute } from '../admin/routes.js';
 import { about } from '../admin/views/about.js';
 import { help } from '../admin/views/help.js';
 import { config } from '../config.js';
@@ -35,6 +35,8 @@ const PUBLIC = [
     ctx.admin = who === 'all' ? { page: 'shared' } : { page: what.toLowerCase(), viewer: who === 'owner' ? '' : cleanViewer(who) };
     if (!await adminRoute(ctx)) notFound(ctx.req, ctx.res);
   }],
+  ['GET', '/config/backup', (ctx) => adminBackup(ctx)],
+  ['POST', '/config/restore', (ctx) => adminRestore(ctx)],
   // Short address with no secret: meant for a private network / VPN.
   ['*', /^\/config\/?$/, async (ctx) => { ctx.admin = { page: 'users' }; if (!await adminRoute(ctx)) notFound(ctx.req, ctx.res); }],
 ];

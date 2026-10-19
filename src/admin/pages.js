@@ -9,6 +9,7 @@ import { sharedKey, sharedRev } from '../storage/shared-store.js';
 import { catalogKey, getOptOut, getPicks, getRev } from '../storage/user-store.js';
 import { viewerStates } from '../storage/token-store.js';
 import { esc } from '../util/html.js';
+import { setupProblems } from './health.js';
 import { beginLogin, isOob } from './login.js';
 import { connectPage } from './views/connect.js';
 import { msg } from './views/layout.js';
@@ -16,7 +17,8 @@ import { listsPage, sharedListsPage } from './views/lists.js';
 import { usersPage } from './views/users.js';
 
 async function usersIndex(req) {
-  const users = await aioUsers();
+  let users = [], usersError = null;
+  try { users = await aioUsers(); } catch (e) { usersError = e; }
   const states = viewerStates();
   const rows = users.map((u) => ({
     user: u,
@@ -24,7 +26,7 @@ async function usersIndex(req) {
     activity: getActivity(u.id),
     calendarUrl: states[u.id] === 'ok' ? `${publicBase(req)}/u/${catalogKey(u.id)}/calendar.ics` : '',
   }));
-  return usersPage(rows, `${publicBase(req)}/manifest.json`);
+  return usersPage(rows, `${publicBase(req)}/manifest.json`, await setupProblems(req, users, usersError));
 }
 
 // The AIOStreams script that points the Traktor addon at an address and keeps the catalogs in Traktor's order.
