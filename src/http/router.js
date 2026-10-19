@@ -28,15 +28,15 @@ const PUBLIC = [
     if (viewer === null) return notFound(ctx.req, ctx.res);
     return runAs(viewer, () => userRoute(ctx, viewer, rest));
   }],
-  // Admin pages: /sofia/connect, /sofia/lists, /owner/... for the primary user, /all/lists for the lists everyone gets.
-  ['*', /^\/(owner|all|[a-z0-9_-]{1,32})\/(connect|lists)\/?$/i, async (ctx, who, what) => {
+  // Admin pages: /config/sofia/connect, /config/sofia/lists, /config/owner/... for the primary user, /config/all/lists for the lists everyone gets.
+  ['*', /^\/config\/(owner|all|[a-z0-9_-]{1,32})\/(connect|lists)\/?$/i, async (ctx, who, what) => {
     who = who.toLowerCase();
     if (who === 'all' && what.toLowerCase() === 'connect') return notFound(ctx.req, ctx.res);
     ctx.admin = who === 'all' ? { page: 'shared' } : { page: what.toLowerCase(), viewer: who === 'owner' ? '' : cleanViewer(who) };
     if (!await adminRoute(ctx)) notFound(ctx.req, ctx.res);
   }],
   // Short address with no secret: meant for a private network / VPN.
-  ['*', '/auth', async (ctx) => { ctx.admin = { page: 'users' }; if (!await adminRoute(ctx)) notFound(ctx.req, ctx.res); }],
+  ['*', /^\/config\/?$/, async (ctx) => { ctx.admin = { page: 'users' }; if (!await adminRoute(ctx)) notFound(ctx.req, ctx.res); }],
 ];
 
 function matchRoute([method, pattern], req, pathname) {

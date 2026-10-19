@@ -9,7 +9,7 @@ import { request } from './http.js';
 const { clientId, clientSecret, redirectUri } = config.trakt;
 const secretField = clientSecret ? { client_secret: clientSecret } : {};
 
-export const NOT_CONNECTED = 'Not connected: connect this user on the /auth page';
+export const NOT_CONNECTED = 'Not connected: connect this user on the /config page';
 
 export function newPkce() {
   const verifier = crypto.randomBytes(48).toString('base64url');
@@ -51,9 +51,9 @@ export async function refresh() {
     if (!res.ok) {
       // Trakt is down or rate limiting: retryable, the login itself is fine.
       if (res.status === 429 || res.status >= 500) throw new TraktError(res.status, `Trakt token refresh -> ${res.status}`, res.headers.get('retry-after'));
-      // Trakt rejected the refresh token: flag it so /auth shows "Needs reconnect".
+      // Trakt rejected the refresh token: flag it so /config shows "Needs reconnect".
       patchUser(viewer, { reauth: true });
-      throw new AuthError(`token refresh rejected (${res.status}); connect this user again on /auth`);
+      throw new AuthError(`token refresh rejected (${res.status}); connect this user again on /config`);
     }
     if (!loadTokens(viewer)) throw new UnknownViewerError(viewer);     // disconnected while refreshing
     return storeTokenResponse(await res.json(), viewer);

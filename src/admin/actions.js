@@ -1,4 +1,4 @@
-// The POST side of /auth: save lists, disconnect a user, or finish a Trakt login. Each returns the page to show.
+// The POST side of /config: save lists, disconnect a user, or finish a Trakt login. Each returns the page to show.
 import { knownViewers, deleteTokens } from '../storage/token-store.js';
 import { setSharedPicks } from '../storage/shared-store.js';
 import { setPicks } from '../storage/user-store.js';

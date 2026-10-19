@@ -6,4 +6,4 @@ export const page = (body, scripts = []) => `<!doctype html><html lang=en><head>
 <body><header><div><a class=brand href="/">Traktor</a><small>for AIOStreams</small></div></header><main>${body}</main><div id=toast class=toast></div>
 ${['common', ...scripts].map((s) => `<script src="/js/${s}.js?v=${V}"></script>`).join('')}</body></html>`;
 
-export const msg = (kind, title, text, back = { href: '/auth', label: 'Back to the list' }) => page(`<div class="card msg ${kind}"><h2>${title}</h2><p class=sub>${text}</p><a class="btn ghost" href="${back.href}">${back.label}</a></div>`);
+export const msg = (kind, title, text, back = { href: '/config', label: 'Back to the list' }) => page(`<div class="card msg ${kind}"><h2>${title}</h2><p class=sub>${text}</p><a class="btn ghost" href="${back.href}">${back.label}</a></div>`);

@@ -1,4 +1,4 @@
-// /auth: the browser pages for connecting users and choosing lists. Guarded by ADMIN_PASSWORD when set.
+// /config: the browser pages for connecting users and choosing lists. Guarded by ADMIN_PASSWORD when set.
 import { config } from '../config.js';
 import { adminAuthorized, isCrossOrigin, readBody } from '../http/request.js';
 import { sendHtml } from '../http/respond.js';

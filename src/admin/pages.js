@@ -1,4 +1,4 @@
-// The GET side of /auth: gathers the data for each page and hands it to a view.
+// The GET side of /config: gathers the data for each page and hands it to a view.
 import { aioUsers, traktorInstanceId } from '../aiostreams/users.js';
 import { config } from '../config.js';
 import { runAs } from '../context.js';

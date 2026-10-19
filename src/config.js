@@ -12,7 +12,7 @@ export const config = {
   port: Number(env.PORT || 7100),
   secret,                                              // path prefix acting as the credential
   prefix: secret ? `/${secret}` : '',
-  adminPassword: env.ADMIN_PASSWORD || '',             // optional: protects the /auth page (any username)
+  adminPassword: env.ADMIN_PASSWORD || '',             // optional: protects the /config page (any username)
   publicUrl: env.PUBLIC_URL || '',
   publicDir: path.join(ROOT, 'public'),
   tokensFile,

@@ -10,5 +10,5 @@ export function connectPage({ user, link, state, redirectUri, oob }) {
 <li><b>Paste the ${oob ? 'code' : 'address'}</b><p>${oob ? 'Trakt shows an authorization code. Copy it and paste it below.' : `Trakt redirects to <code>${esc(redirectUri)}</code>, which may show an error page. Copy the full address from the address bar and paste it below.`}</p>
 <form method=post><input type=hidden name=state value="${state}">
 <input name=url placeholder="${oob ? 'Authorization code' : esc(redirectUri) + '?code=...'}" required autocomplete=off><button>Finish</button></form></li>
-</ol></div><footer><a class="btn ghost" href="/auth" style="display:block;text-align:center">Back</a></footer>`);
+</ol></div><footer><a class="btn ghost" href="/config" style="display:block;text-align:center">Back</a></footer>`);
 }

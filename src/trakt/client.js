@@ -10,7 +10,7 @@ const REFRESH_AHEAD_MS = 24 * 3600 * 1000;
 async function accessToken() {
   let t = loadTokens();
   if (!t) throw currentViewer() ? new UnknownViewerError(currentViewer()) : new AuthError(NOT_CONNECTED);
-  if (t.reauth) throw new AuthError('Trakt login expired; connect this user again on /auth');
+  if (t.reauth) throw new AuthError('Trakt login expired; connect this user again on /config');
   if (t.expires_at - Date.now() < REFRESH_AHEAD_MS) t = await refresh();
   return t.access_token;
 }

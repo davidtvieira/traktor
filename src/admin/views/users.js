@@ -14,7 +14,7 @@ function activityLine(a) {
   return `Last sync ${ago(a.seen)} ${info}</span><ul class=hist>${rows}</ul><span hidden>`;
 }
 
-const userHref = (u, page) => `/${u.owner ? 'owner' : encodeURIComponent(u.id)}/${page}`;
+const userHref = (u, page) => `/config/${u.owner ? 'owner' : encodeURIComponent(u.id)}/${page}`;
 
 function row({ user: u, state, activity, calendarUrl }) {
   const connected = state === 'ok';
@@ -31,7 +31,7 @@ ${connected
 // The first row: the lists every user sees, and the way for a user with no Trakt account to get them.
 const everyoneRow = `<div class=user><div class=av>*</div>
 <div class=who><b>Everyone</b><span>Charts shown to every user, no Trakt account needed</span></div>
-<a class="btn ghost ic" title="Lists for everyone" aria-label="Lists for everyone" href="/all/lists">${ICONS.lists}<span class=lb>Lists</span></a></div>`;
+<a class="btn ghost ic" title="Lists for everyone" aria-label="Lists for everyone" href="/config/all/lists">${ICONS.lists}<span class=lb>Lists</span></a></div>`;
 
 // rows: [{ user, state, activity, calendarUrl }]
-export const usersPage = (rows, manifestUrl) => page(`<h1>AIOStreams users</h1><p class=sub>Connect each AIOStreams user to their Trakt account.</p><div class=card>${everyoneRow}${rows.map(row).join('')}</div><footer style="display:grid;gap:10px"><button type=button data-url="${esc(manifestUrl)}" data-msg="Manifest copied" onclick="cp(this)" style="width:100%">Copy manifest</button><a class="btn ghost" href="/" style="display:block;text-align:center">Back</a></footer><dialog id=hd data-max="${HISTORY_MAX}"><h2 id=ht></h2><p id=hs class=sub style="margin:-6px 0 12px"></p><ul id=hl></ul><button type=button class=ghost onclick="hd.close()" style="width:100%">Close</button></dialog>`, ['history']);
+export const usersPage = (rows, manifestUrl) => page(`<h1>AIOStreams users</h1><p class=sub>Connect each AIOStreams user to their Trakt account and manage their Trakt lists.</p><div class=card>${everyoneRow}${rows.map(row).join('')}</div><footer style="display:grid;gap:10px"><button type=button data-url="${esc(manifestUrl)}" data-msg="Manifest copied" onclick="cp(this)" style="width:100%">Copy manifest</button><a class="btn ghost" href="/" style="display:block;text-align:center">Back</a></footer><dialog id=hd data-max="${HISTORY_MAX}"><h2 id=ht></h2><p id=hs class=sub style="margin:-6px 0 12px"></p><ul id=hl></ul><button type=button class=ghost onclick="hd.close()" style="width:100%">Close</button></dialog>`, ['history']);

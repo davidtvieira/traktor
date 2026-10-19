@@ -8,4 +8,4 @@ export const about = () => page(`<img class=hero src="/logo.svg" alt=""><h1 styl
 </ol></div>
 <div class=card style="margin-top:16px;border-left:3px solid var(--red)"><div style="padding:14px"><b>Install once</b>
 <p class=sub style="margin:6px 0 0">This is a one-time install. Never reinstall the addon in AIOStreams, and don't edit it afterwards: that breaks the link between the addon and your users. To change anything later, update each user's variant instead. See Help.</p></div></div>
-<footer style="display:grid;gap:10px;margin-top:20px"><a class=btn href="/auth" style="display:block;text-align:center">Configure addon</a><a class="btn ghost" href="/help" style="display:block;text-align:center">Help</a></footer>`);
+<footer style="display:grid;gap:10px;margin-top:20px"><a class=btn href="/config" style="display:block;text-align:center">Configure addon</a><a class="btn ghost" href="/help" style="display:block;text-align:center">Help</a></footer>`);
