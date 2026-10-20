@@ -46,3 +46,20 @@ test('sorting by title, rating, release and added date, with missing values last
   assert.equal(needsFull('title:asc'), false);
   assert.equal(needsFull('rating:desc'), true);
 });
+
+test('enrich takes the title and poster of the other addon, keeps the entry when it has none, and does nothing unset', async () => {
+  const { config } = await import('../../src/config.js');
+  const { enrich } = await import('../../src/features/lists/enrich.js');
+  const metas = [{ id: 'tt1', name: 'Heat', poster: 'old' }, { id: 'tt2', name: 'Gone', poster: 'old2' }];
+  assert.equal(await enrich(metas, 'movie'), metas);
+  const real = globalThis.fetch;
+  config.metaAddon.url = 'http://x/stremio/u';
+  globalThis.fetch = async (url) => (url.includes('tt1')
+    ? { ok: true, json: async () => ({ meta: { name: 'Fogo contra Fogo', poster: 'new', logo: 'l' } }) }
+    : { ok: false });
+  try {
+    const out = await enrich(metas, 'movie');
+    assert.deepEqual(out[0], { id: 'tt1', name: 'Fogo contra Fogo', poster: 'new' });
+    assert.deepEqual(out[1], metas[1]);
+  } finally { globalThis.fetch = real; config.metaAddon.url = ''; }
+});

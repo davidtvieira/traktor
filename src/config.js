@@ -22,6 +22,9 @@ export const config = {
     clientSecret: env.TRAKT_CLIENT_SECRET || '',
     redirectUri: env.TRAKT_REDIRECT_URI || '',
   },
+  metaAddon: {
+    url: (env.META_ADDON_URL || '').replace(/\/$/, ''),   // optional: another addon whose titles and posters the list tiles use
+  },
   aiostreams: {
     url: (env.AIOSTREAMS_URL || '').replace(/\/$/, ''),
     uuid: env.AIOSTREAMS_UUID,

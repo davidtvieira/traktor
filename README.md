@@ -21,7 +21,7 @@ Syncs AIOStreams with Trakt, one Trakt account per AIOStreams user.
    cp .env.example .env     # then fill in TRAKT_CLIENT_ID and the AIOStreams values
    ```
 
-   `TRAKT_CLIENT_ID`, `TRAKT_REDIRECT_URI` and the three `AIOSTREAMS_` values are required: Traktor stops at startup and names the missing ones in `docker logs traktor`. `TRAKT_REDIRECT_URI` must match the Trakt app exactly. The three `AIOSTREAMS_` values are only used to fetch your users, so each can be linked to a Trakt account on `/config`. `ADMIN_PASSWORD` (asks for a password on `/config`) and `ADDON_SECRET` (adds `/<secret>/` to the manifest URL) are optional.
+   `TRAKT_CLIENT_ID`, `TRAKT_REDIRECT_URI` and the three `AIOSTREAMS_` values are required: Traktor stops at startup and names the missing ones in `docker logs traktor`. `TRAKT_REDIRECT_URI` must match the Trakt app exactly. The three `AIOSTREAMS_` values are only used to fetch your users, so each can be linked to a Trakt account on `/config`. `ADMIN_PASSWORD` (asks for a password on `/config`) and `ADDON_SECRET` (adds `/<secret>/` to the manifest URL) are optional. `META_ADDON_URL` is also optional: set it to another Stremio addon's address (for example AIOMetadata, `https://host/stremio/<uuid>`) and the list tiles take their title and poster from it instead of Trakt, so they match the page that opens.
 
 3. Start it:
 
@@ -43,6 +43,14 @@ After any change to a user's lists (ticking or unticking one, new lists, a new o
 3. In AIOStreams, open that user's variant, paste the script over the old one and save.
 
 Each save adds 1 to the `?r=` number at the end of the address in the script. That makes AIOStreams reload the addon, so new lists and the new order show up. The script also keeps the catalogs in the order set in Traktor. If nothing changes after that, restart the AIOStreams container (`docker compose down` then `docker compose up -d` in its folder).
+
+## Titles and posters from another addon
+
+By default the tiles in your lists use the title and Metahub poster that come with the Trakt data, which are in English. If you use a metadata addon such as AIOMetadata, set `META_ADDON_URL` in `.env` to its address (for example `https://host/stremio/<uuid>`). Traktor then asks that addon for each title (`/meta/<type>/<imdb id>.json`) and uses its title, year and poster, so a tile matches the page that opens from it, in your language.
+
+- Leave it empty to keep the Trakt data.
+- A title the addon cannot answer keeps its original entry, so a list is never empty because of it.
+- Answers are cached for 6 hours. Restart Traktor after changing the setting.
 
 ## Calendar
 

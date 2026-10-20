@@ -2,6 +2,7 @@
 import { api, apiPublic } from '../../trakt/client.js';
 import { getOptOut, getPicks, getSorts } from '../../storage/user-store.js';
 import { cached } from './cache.js';
+import { enrich } from './enrich.js';
 import { toMeta } from './meta.js';
 import { PAGE, availableLists, chosenLists, sharedLists } from './sources.js';
 import { needsFull, sortItems } from './sort.js';
@@ -55,9 +56,9 @@ const pick = (entries, type, id) => {
 // A list that is not ticked (or unknown) answers with no titles.
 export async function catalogMetas(viewer, type, id, skip = 0) {
   const entry = pick(await selected(viewer), type, id);
-  return entry ? fetchMetas(viewer, entry, type, skip) : [];
+  return entry ? enrich(await fetchMetas(viewer, entry, type, skip), type) : [];
 }
 export async function sharedCatalogMetas(type, id, skip = 0) {
   const entry = pick(sharedLists(), type, id);
-  return entry ? fetchMetas(null, entry, type, skip) : [];
+  return entry ? enrich(await fetchMetas(null, entry, type, skip), type) : [];
 }
