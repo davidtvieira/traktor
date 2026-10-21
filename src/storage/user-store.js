@@ -23,10 +23,12 @@ export const getRev = (viewer) => (loadTokens(viewer)?.rev ?? 0) + sharedRev();
 export const getSorts = (viewer) => loadTokens(viewer)?.sorts ?? {};
 // The charts shown to everyone that this user turned off.
 export const getOptOut = (viewer) => loadTokens(viewer)?.optout ?? [];
+// The lists this user keeps off Stremio's home screen (they stay in Discover).
+export const getNoHome = (viewer) => loadTokens(viewer)?.nohome ?? [];
 const sameList = (a, b) => Array.isArray(a) && a.length === b.length && a.every((x, i) => x === b[i]);
-export function setPicks(viewer, picks, optout = getOptOut(viewer), sorts = getSorts(viewer)) {
+export function setPicks(viewer, picks, optout = getOptOut(viewer), sorts = getSorts(viewer), nohome = getNoHome(viewer)) {
   const t = loadTokens(viewer);
   if (!t) return;
-  const same = sameList(t.picks, picks) && sameList(t.optout ?? [], optout);
-  patchUser(viewer, { picks, optout, sorts, rev: (t.rev || 0) + (same ? 0 : 1) });
+  const same = sameList(t.picks, picks) && sameList(t.optout ?? [], optout) && sameList(t.nohome ?? [], nohome);
+  patchUser(viewer, { picks, optout, sorts, nohome, rev: (t.rev || 0) + (same ? 0 : 1) });
 }

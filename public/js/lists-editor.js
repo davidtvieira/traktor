@@ -14,7 +14,7 @@ function tg(c) {
   chk();
 }
 function state() {
-  return [].map.call(document.querySelectorAll('input[name=pick]:checked, input[name=shared]:checked, #shown select.srt'), function (x) { return x.value; }).join(',');
+  return [].map.call(document.querySelectorAll('input[name=pick]:checked, input[name=shared]:checked, #shown select.srt, input.hmc:not(:checked)'), function (x) { return (x.classList.contains('hmc') ? '-' : '') + x.value; }).join(',');
 }
 var base = state();
 function chk() { document.getElementById('sv').disabled = state() === base; }

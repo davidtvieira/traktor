@@ -24,7 +24,9 @@ function saveLists(f) {
   const on = new Set(f.getAll('shared'));
   const sorts = {};
   for (const id of picks) { const k = sortKey(f.get(`sort_${id}`)); if (k) sorts[id] = k; }
-  setPicks(viewer, picks, sharedLists().map((l) => l.id).filter((id) => !on.has(id)), sorts);
+  const shown = [...picks, ...on].filter(validId);
+  const noHome = shown.filter((id) => !f.has(`home_${id}`));
+  setPicks(viewer, picks, sharedLists().map((l) => l.id).filter((id) => !on.has(id)), sorts, noHome);
   log(`lists saved: ${picks.length} selected`, viewer);
   return msg('good', 'Lists saved', 'AIOStreams may take a few minutes to show the change. Save the addon there again if it does not.');
 }

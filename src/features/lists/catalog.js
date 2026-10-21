@@ -1,6 +1,6 @@
 // Trakt lists as Stremio catalogs: a connected user's own, plus the charts shown to everyone.
 import { api, apiPublic } from '../../trakt/client.js';
-import { getOptOut, getPicks, getSorts } from '../../storage/user-store.js';
+import { getNoHome, getOptOut, getPicks, getSorts } from '../../storage/user-store.js';
 import { cached } from './cache.js';
 import { enrich } from './enrich.js';
 import { toMeta } from './meta.js';
@@ -14,8 +14,12 @@ async function selected(viewer) {
   const sorts = getSorts(viewer);
   const own = chosenLists(await availableLists(viewer), getPicks(viewer)).map((l) => (sorts[l.id] ? { ...l, sort: sorts[l.id] } : l));
   const skip = new Set([...own.map((l) => l.id), ...getOptOut(viewer)]);
-  return [...own, ...sharedLists().filter((l) => !skip.has(l.id))];
+  const noHome = new Set(getNoHome(viewer));
+  return [...own, ...sharedLists().filter((l) => !skip.has(l.id))].map((l) => (noHome.has(l.id) ? { ...l, home: false } : l));
 }
+
+// Stremio's home screen only shows catalogs that need no extra filter, so a required genre keeps a list to Discover.
+const HIDDEN_FROM_HOME = { name: 'genre', isRequired: true, options: ['All'] };
 
 const withFull = (path) => `${path}${path.includes('?') ? '&' : '?'}extended=full`;
 
@@ -37,7 +41,7 @@ async function manifestOf(viewer, entries, id, description, logo) {
       try { return (await fetchMetas(viewer, e, type)).length ? type : null; }
       catch { return type; }                           // could not check: keep it rather than hide it
     }))).filter(Boolean);
-    return types.map((type) => ({ type, id: e.id, name: e.name, extra: [{ name: 'skip' }] }));
+    return types.map((type) => ({ type, id: e.id, name: e.name, extra: e.home === false ? [HIDDEN_FROM_HOME, { name: 'skip' }] : [{ name: 'skip' }] }));
   }))).flat();
   return { id, version: '1.0.0', name: 'Traktor Lists', description, logo, resources: ['catalog'], types: BOTH, catalogs };
 }
