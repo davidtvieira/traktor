@@ -11,9 +11,22 @@ const BOTH = ['movie', 'series'];
 // kind is 'movie' or 'show'. A paged chart reads one page of PAGE items; the rest read up to FETCH_LIMIT.
 const chart = (id, name, pathOf, extra = {}) => ({ id, group: 'Discover', name, types: BOTH, paged: true, public: true, path: (kind, page) => `${pathOf(kind)}?limit=${PAGE}&page=${page}`, ...extra });
 
+const DAY = 86400000;
+const CALENDAR_DAYS = 30;
+// Shows that aired in the CALENDAR_DAYS full days before today (today is left out) on the user's Trakt calendar, newest first, one entry per show.
+const midnight = (daysAgo) => Math.floor(Date.now() / DAY) * DAY - daysAgo * DAY;
+const recentCalendar = () => `/calendars/my/shows/${new Date(midnight(CALENDAR_DAYS)).toISOString().slice(0, 10)}/${CALENDAR_DAYS + 1}`;
+const newestFirstOnePerShow = (items) => {
+  const seen = new Set(), from = midnight(CALENDAR_DAYS), to = midnight(0);
+  return items.filter((i) => i.show && Date.parse(i.first_aired) >= from && Date.parse(i.first_aired) < to)
+    .sort((a, b) => String(b.first_aired).localeCompare(String(a.first_aired)))
+    .filter((i) => !seen.has(i.show.ids?.trakt) && seen.add(i.show.ids?.trakt));
+};
+
 const ACCOUNT = [
   { id: 'recommended', group: 'Your account', name: 'Recommended', types: BOTH, defaultOn: true, path: (k) => `/recommendations/${k}s?limit=100&ignore_watchlisted=true` },
   { id: 'favorites', group: 'Your account', name: 'Favorites', types: BOTH, path: (k) => `/sync/favorites/${k}s?limit=${FETCH_LIMIT}` },
+  { id: 'calendar-30', group: 'Your account', name: 'Aired in the last 30 days', types: ['series'], path: recentCalendar, arrange: newestFirstOnePerShow },
   { id: 'collection', group: 'Your account', name: 'Collection', types: BOTH, path: (k) => `/sync/collection/${k}s` },
 ];
 // The charts need no Trakt login, so they can be shown to everyone.

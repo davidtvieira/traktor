@@ -25,7 +25,7 @@ async function fetchMetas(viewer, entry, type, skip = 0) {
   const page = entry.paged ? Math.floor(skip / PAGE) + 1 : 1;
   const path = needsFull(entry.sort) ? withFull(entry.path(kind, page)) : entry.path(kind, page);
   const items = await (entry.public ? cached(`public:${path}`, () => apiPublic(path)) : cached(`${viewer}:${path}`, () => api('GET', path)));
-  const metas = sortItems(items || [], entry.sort, kind).map((i) => toMeta(i[kind] ?? i, type)).filter(Boolean);
+  const metas = sortItems(entry.arrange ? entry.arrange(items || []) : items || [], entry.sort, kind).map((i) => toMeta(i[kind] ?? i, type)).filter(Boolean);
   return entry.paged ? metas.slice(skip - (page - 1) * PAGE) : metas.slice(skip, skip + PAGE);
 }
 
