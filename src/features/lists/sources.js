@@ -26,7 +26,7 @@ const newestFirstOnePerShow = (items) => {
 const ACCOUNT = [
   { id: 'recommended', group: 'Your account', name: 'Recommended', types: BOTH, defaultOn: true, path: (k) => `/recommendations/${k}s?limit=100&ignore_watchlisted=true` },
   { id: 'favorites', group: 'Your account', name: 'Favorites', types: BOTH, path: (k) => `/sync/favorites/${k}s?limit=${FETCH_LIMIT}` },
-  { id: 'calendar-30', group: 'Your account', name: 'Aired in the last 30 days', types: ['series'], path: recentCalendar, arrange: newestFirstOnePerShow },
+  { id: 'calendar-30', group: 'Your account', name: 'Exibidos nos últimos 30 dias', types: ['series'], path: recentCalendar, arrange: newestFirstOnePerShow },
   { id: 'collection', group: 'Your account', name: 'Collection', types: BOTH, path: (k) => `/sync/collection/${k}s` },
 ];
 // The charts need no Trakt login, so they can be shown to everyone.
