@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { syncBody, bulkBody, scrobbleBody, ratingBody, showOnlyBody } from '../../src/features/watch-state/push/bodies.js';
+import { syncBody, bulkBody, scrobbleBody, reachedPlayed, ratingBody, showOnlyBody } from '../../src/features/watch-state/push/bodies.js';
 import { absoluteIndex } from '../../src/features/watch-state/push/numbering.js';
 import { outcome, what, labelOf } from '../../src/features/watch-state/push/log-format.js';
 
@@ -49,4 +49,12 @@ test('log wording', () => {
   assert.equal(outcome({ added: { movies: 1, episodes: 0 } }), 'added movies=1');
   assert.equal(outcome({ duplicate: true }), 'already scrobbled (409)');
   assert.equal(outcome({ action: 'scrobble', progress: 50.04 }), 'ok, Trakt saved: scrobble at 50%');
+});
+
+test('a stop at or past the played percent counts as watched', () => {
+  const stop = (pos) => ({ event: 'stop', positionMs: pos, durationMs: 100 });
+  assert.equal(reachedPlayed(stop(88), 85), true);
+  assert.equal(reachedPlayed(stop(84), 85), false);
+  assert.equal(reachedPlayed({ event: 'pause', positionMs: 99, durationMs: 100 }, 85), false);
+  assert.equal(reachedPlayed({ event: 'stop', positionMs: 99 }, 85), false);
 });

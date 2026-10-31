@@ -62,6 +62,12 @@ Each connected user has a private calendar feed of the episodes and movies comin
    - **Google Calendar (web):** *Other calendars → From URL*.
    - **iPhone / Mac:** *Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar*.
 
+## When something counts as watched
+
+AIOStreams tells Traktor an episode or movie is watched once playback passes its **played percent**, 90 by default (`WATCH_STATE_PLAYED_PERCENT` in AIOStreams). Traktor reads the same variable name from its own `.env` (default 90) and treats any stop at or past that share of the runtime as watched, writing it to your Trakt history. Below it, a stop is only saved as a pause, and Trakt is never sent 80% or more for an unfinished title, so it cannot mark it watched by accident.
+
+Set the **same value in both places**. If you finish episodes at about 88%, set `WATCH_STATE_PLAYED_PERCENT=85` in AIOStreams and in Traktor's `.env`, then restart both.
+
 ## Project layout
 
 ```

@@ -1,6 +1,7 @@
 // Pure builders: one AIOStreams push event in, one Trakt request body out (null when the event has no usable ids).
 import { traktIds, hasIds, isMovie } from '../../../util/ids.js';
 import { isoAt } from '../../../util/time.js';
+import { config } from '../../../config.js';
 
 // A Trakt sync object for a single event. Only history entries carry a timestamp.
 export function syncBody(ev, withTime = false) {
@@ -25,6 +26,12 @@ export function bulkBody(ev) {
   }
   if (!seasons.size) return null;
   return { shows: [{ ids, seasons: [...seasons].map(([number, episodes]) => ({ number, episodes })) }] };
+}
+
+// A stop that reached the played threshold counts as watched even when the client did not flag it.
+export function reachedPlayed(ev, threshold = config.playedPercent) {
+  if (ev.event !== 'stop' || !ev.durationMs) return false;
+  return (ev.positionMs / ev.durationMs) * 100 >= threshold;
 }
 
 export function scrobbleBody(ev) {

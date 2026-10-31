@@ -4,7 +4,7 @@ import { TraktError } from '../../../trakt/errors.js';
 import { log } from '../../../util/log.js';
 import { touchActivity } from '../../activity/store.js';
 import { describe } from '../../activity/describe.js';
-import { syncBody, bulkBody, scrobbleBody, showOnlyBody, ratingBody } from './bodies.js';
+import { syncBody, bulkBody, scrobbleBody, reachedPlayed, showOnlyBody, ratingBody } from './bodies.js';
 import { fixNumbering } from './numbering.js';
 import { labelOf, percentOf, what, outcome } from './log-format.js';
 
@@ -43,6 +43,7 @@ async function sendPush(ev) {
 
 export async function handlePush(ev) {
   await fixNumbering(ev);
+  if (!ev.played && reachedPlayed(ev)) ev.played = true;
   const label = labelOf(ev), pct = percentOf(ev);
   try {
     const r = await sendPush(ev);

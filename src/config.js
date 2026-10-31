@@ -25,6 +25,8 @@ export const config = {
   metaAddon: {
     url: (env.META_ADDON_URL || '').replace(/\/$/, ''),   // optional: another addon whose titles and posters the list tiles use
   },
+  // Keep equal to WATCH_STATE_PLAYED_PERCENT in AIOStreams: a stop at or past this share of the runtime counts as watched.
+  playedPercent: Number(env.WATCH_STATE_PLAYED_PERCENT || 90),
   aiostreams: {
     url: (env.AIOSTREAMS_URL || '').replace(/\/$/, ''),
     uuid: env.AIOSTREAMS_UUID,
