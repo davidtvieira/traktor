@@ -10,9 +10,9 @@ function activityLine(a) {
   if (!a?.seen) return 'No updates yet';
   const failed = a.error ? `</span><span class=warn>Last sync failed ${ago(a.error.at)}: ${esc(a.error.text)}</span><span>` : '';
   if (!a.recent?.length) return `Last sync ${ago(a.seen)}${failed}`;
-  const info = `<button type=button class=info title="Last ${HISTORY_MAX} actions" aria-label="Last ${HISTORY_MAX} actions" onclick="hist(this)">i</button>`;
+  const sync = `<button type=button class=sync title="Show the last ${HISTORY_MAX} actions" onclick="hist(this)">Last sync ${ago(a.seen)}</button>`;
   const rows = a.recent.map((r) => `<li>${esc(r.text)} <em>${ago(r.at)}</em></li>`).join('');
-  return `Last sync ${ago(a.seen)} ${info}${failed}</span><ul class=hist>${rows}</ul><span hidden>`;
+  return `${sync}${failed}</span><ul class=hist>${rows}</ul><span hidden>`;
 }
 
 const userHref = (u, page) => `/config/${u.owner ? 'owner' : encodeURIComponent(u.id)}/${page}`;
@@ -26,7 +26,7 @@ ${connected ? `<button type=button class="ghost ic" title="Copy calendar link" a
 ${connected ? `<a class="btn ghost ic" title="Lists" aria-label="Lists" href="${userHref(u, 'lists')}">${ICONS.lists}<span class=lb>Lists</span></a>` : ''}
 ${connected
   ? `<form method=post style="margin:0" onsubmit="return confirm('Disconnect ${esc(u.name).replace(/'/g, '')} from Trakt?')"><input type=hidden name=disconnect value="${esc(u.id)}"><button class="ghost warn ic" title="Disconnect" aria-label="Disconnect">${ICONS.unlink}<span class=lb>Disconnect</span></button></form>`
-  : `<a class=btn href="${userHref(u, 'connect')}">${state === 'reauth' ? 'Reconnect' : 'Connect'}</a>`}</div>`;
+  : `<a class="btn ic" title="${state === 'reauth' ? 'Reconnect' : 'Connect'}" aria-label="${state === 'reauth' ? 'Reconnect' : 'Connect'}" href="${userHref(u, 'connect')}">${ICONS.link}<span class=lb>${state === 'reauth' ? 'Reconnect' : 'Connect'}</span></a>`}</div>`;
 }
 
 // The first row: the lists every user sees, and the way for a user with no Trakt account to get them.
