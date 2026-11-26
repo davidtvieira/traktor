@@ -21,8 +21,12 @@ export async function aioUsers() {
   // AIOStreams names the addon its preset id plus the first 4 characters of the hash of the addon's identifier, which a custom addon has none of.
   const presetId = (userData.presets || []).find((p) => p.options?.name === 'Traktor')?.instanceId;
   const traktorId = presetId ? presetId + crypto.createHash('sha256').update('').digest('hex').slice(0, 4) : null;
-  const list = [{ id: '', name: j.primary?.name || 'Primary user', owner: true }];
-  for (const p of j.personas || []) list.push({ id: p.id, name: p.name, shared: p.history === 'shared' });
+  // Newer AIOStreams keeps users in userData.profiles (the profile with id '' is the owner); older ones used jellyfin.primary and jellyfin.personas.
+  const profiles = userData.profiles || [];
+  const owner = profiles.find((p) => !p.id);
+  const list = [{ id: '', name: owner?.name || j.primary?.name || 'Primary user', owner: true }];
+  const others = profiles.length ? profiles.filter((p) => p.id) : j.personas || [];
+  for (const p of others) list.push({ id: p.id, name: p.name, shared: p.history === 'shared' });
   cache = { at: Date.now(), list, traktorId };
   return list;
 }
